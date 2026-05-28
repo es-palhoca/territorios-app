@@ -13,6 +13,7 @@ import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { FeedbackView } from './components/FeedbackView';
 import { PublicBoardView } from './components/PublicBoardView';
+import { CensoView } from './components/CensoView';
 import { MessageSquare, Database as DatabaseIcon, Settings as SettingsIcon, Map, Loader2, CheckCircle2, AlertCircle, LogOut, Home } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -200,6 +201,7 @@ const AppRouter = () => {
   const searchParams = new URLSearchParams(window.location.search);
   const shareId = searchParams.get('share');
   const boardId = searchParams.get('board');
+  const censoId = searchParams.get('censo');
 
   if (shareId) {
     return <FeedbackView shareId={shareId} />;
@@ -207,6 +209,10 @@ const AppRouter = () => {
 
   if (boardId) {
     return <PublicBoardView boardId={boardId} />;
+  }
+
+  if (censoId) {
+    return <CensoView userId={censoId} />;
   }
 
   if (loading) {

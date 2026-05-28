@@ -171,6 +171,7 @@ export const Settings: React.FC = () => {
   };
 
   const boardUrl = user ? `${window.location.origin}/?board=${user.uid}` : '';
+  const censoUrl = user ? `${window.location.origin}/?censo=${user.uid}` : '';
 
   return (
     <div className="p-4 md:p-6 bg-bg h-full w-full overflow-y-auto">
@@ -231,6 +232,51 @@ export const Settings: React.FC = () => {
                 </button>
                 <a 
                   href={boardUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="bg-surface-accent hover:bg-border text-text-main px-3 rounded-md transition-colors flex items-center justify-center border border-border shrink-0"
+                  title="Testar link"
+                >
+                  <ExternalLink size={16} />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Censo Link Settings */}
+        <div className="bg-surface p-4 md:p-5 rounded-xl border border-secondary/30 shadow-lg shadow-secondary/5">
+          <h3 className="text-lg font-medium text-secondary mb-2 flex items-center">
+            <Globe className="mr-2 text-secondary" size={20} />
+            Censo de Endereços Pendentes
+          </h3>
+          <p className="text-sm text-text-dim mb-4">
+            Compartilhe este link com outros publicadores para que eles enviem novos endereços de forma rápida e segura. Os envios chegarão como notificações na sua Home para você aprovar e decidir em qual território colocá-los!
+          </p>
+
+          {user && (
+            <div className="pt-2">
+              <label className="block text-xs font-medium text-text-dim mb-1 uppercase tracking-wider">Link para Envio de Censo</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={censoUrl}
+                  className="flex-1 bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none text-sm font-mono overflow-x-auto"
+                />
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(censoUrl);
+                    setStatus({ type: 'success', message: 'Link do Censo copiado!' });
+                    setTimeout(() => setStatus(null), 2000);
+                  }}
+                  className="bg-surface-accent hover:bg-border text-text-main px-3 rounded-md transition-colors font-medium border border-border shrink-0"
+                  title="Copiar link do censo"
+                >
+                  Copiar
+                </button>
+                <a 
+                  href={censoUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="bg-surface-accent hover:bg-border text-text-main px-3 rounded-md transition-colors flex items-center justify-center border border-border shrink-0"

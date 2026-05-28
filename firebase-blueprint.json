@@ -58,6 +58,23 @@
         "updatedAt": { "type": "timestamp" }
       },
       "required": ["id", "ownerUid", "congregationName", "availableTerritories", "updatedAt"]
+    },
+    "CensoSubmission": {
+      "title": "CensoSubmission",
+      "description": "An address suggestion submitted by publishers anonymous-friendly censo form",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerUid": { "type": "string", "description": "Owner Uid of the system" },
+        "publisherName": { "type": "string", "description": "The name of the sender" },
+        "street": { "type": "string", "description": "The street name/address" },
+        "number": { "type": "string", "description": "The house number" },
+        "bairroName": { "type": "string", "description": "The neighborhood/bairro name" },
+        "observations": { "type": "string", "description": "Any observations comments" },
+        "createdAt": { "type": "timestamp" },
+        "read": { "type": "boolean", "description": "Is read/processed by owner" }
+      },
+      "required": ["id", "ownerUid", "publisherName", "street", "number", "bairroName", "observations", "createdAt", "read"]
     }
   },
   "firestore": {
@@ -76,6 +93,10 @@
     "boards/{boardId}": {
       "schema": { "$ref": "#/entities/PublicBoard" },
       "description": "Public storefront for territories"
+    },
+    "censos/{censoId}": {
+      "schema": { "$ref": "#/entities/CensoSubmission" },
+      "description": "New addresses submitted via the Censo form"
     }
   }
 }

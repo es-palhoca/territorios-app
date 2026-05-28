@@ -8,10 +8,256 @@ import { Home, MapPin, Map, Bell, AlertCircle, Check, X, BookmarkPlus, Plus, Inf
 import { Modal } from './Modal';
 import { Bairro, Territorio } from '../types';
 
+// Define helper AssignCensoModalContent component for mapping Censo submissions
+interface AssignProps {
+  censo: any;
+  db: { bairros: Bairro[]; city?: string; state?: string };
+  addEndereco: (territorioId: string, street: string, number: string, observations?: string) => any;
+  onSuccess: (id: string) => void;
+}
+
+const AssignCensoModalContent: React.FC<AssignProps> = ({ censo, db, addEndereco, onSuccess }) => {
+  const [bairroId, setBairroId] = useState('');
+  const [territorioId, setTerritorioId] = useState('');
+
+  // Find territories that contains addresses with a similar street name
+  const cleanStreet = (s: string) => {
+    if (!s) return '';
+    return s.toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/^(rua|r\.|av\.|avenida|travessa|tv\.|alameda|al\.)\s+/, '')
+      .trim();
+  };
+
+  const censoCleanStreet = cleanStreet(censo.street);
+
+  const matchedTerritories = React.useMemo(() => {
+    if (!censoCleanStreet) return [];
+    const list: Array<{
+      bairro: Bairro;
+      territorio: Territorio;
+      matchCount: number;
+      existingNumbers: string[];
+    }> = [];
+
+    db.bairros.forEach(b => {
+      b.territorios.forEach(t => {
+        const matchingEnds = t.enderecos.filter(e => {
+          const eClean = cleanStreet(e.street);
+          return eClean.includes(censoCleanStreet) || censoCleanStreet.includes(eClean);
+        });
+        if (matchingEnds.length > 0) {
+          list.push({
+            bairro: b,
+            territorio: t,
+            matchCount: matchingEnds.length,
+            existingNumbers: matchingEnds.map(e => e.number)
+          });
+        }
+      });
+    });
+
+    return list.sort((a, b) => b.matchCount - a.matchCount);
+  }, [censoCleanStreet, db.bairros]);
+
+  useEffect(() => {
+    // Attempt Bairro matching by name
+    const match = db.bairros.find(b => b.name.toLowerCase().trim() === censo.bairroName.toLowerCase().trim());
+    if (match) {
+      setBairroId(match.id);
+    } else if (db.bairros.length > 0) {
+      setBairroId(db.bairros[0].id);
+    }
+  }, [censo.bairroName, db.bairros]);
+
+  const currentBairro = db.bairros.find(b => b.id === bairroId);
+  const currentTerritorios = currentBairro?.territorios || [];
+
+  useEffect(() => {
+    if (currentTerritorios.length > 0) {
+      // Find default territory. See if we have matches in this bairro, select it!
+      const firstMatchInBairro = matchedTerritories.find(m => m.bairro.id === bairroId);
+      if (firstMatchInBairro) {
+        setTerritorioId(firstMatchInBairro.territorio.id);
+      } else {
+        setTerritorioId(currentTerritorios[0].id);
+      }
+    } else {
+      setTerritorioId('');
+    }
+  }, [bairroId, currentTerritorios, matchedTerritories]);
+
+  // Selected territory's streets
+  const selectedTerritorio = currentTerritorios.find(t => t.id === territorioId);
+  const selectedTerritorioStreets = React.useMemo(() => {
+    if (!selectedTerritorio) return {};
+    const groups: Record<string, string[]> = {};
+    selectedTerritorio.enderecos.forEach(e => {
+      if (!groups[e.street]) groups[e.street] = [];
+      groups[e.street].push(e.number);
+    });
+    return groups;
+  }, [selectedTerritorio]);
+
+  const handleAssign = async (targetId: string) => {
+    try {
+      addEndereco(targetId, censo.street, censo.number, censo.observations);
+      await updateDoc(doc(firestoreDb, 'censos', censo.id), { read: true });
+      onSuccess(censo.id);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao vincular endereço.');
+    }
+  };
+
+  return (
+    <div className="space-y-4 text-left text-sm">
+      {/* Sent Address Details */}
+      <div className="bg-surface-accent/70 p-4 rounded-xl border border-border">
+        <div className="text-xs font-bold text-secondary uppercase tracking-wider mb-2">Endereço Solicitado</div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2">
+            <span className="text-xs text-text-dim block">Rua:</span>
+            <span className="font-bold text-text-main text-base">{censo.street}</span>
+          </div>
+          <div>
+            <span className="text-xs text-text-dim block">Número:</span>
+            <span className="font-bold text-text-main text-base">{censo.number}</span>
+          </div>
+        </div>
+        <div className="mt-2 text-xs">
+          <span className="text-text-dim">Bairro sugerido:</span> <span className="font-semibold text-text-main">{censo.bairroName}</span>
+        </div>
+        {censo.observations && (
+          <div className="mt-2 pt-2 border-t border-border/50">
+            <span className="text-xs text-text-dim block mb-0.5">Observações:</span>
+            <p className="text-xs text-text-main bg-bg p-2 rounded-lg border border-border/50 max-h-20 overflow-y-auto italic">
+              "{censo.observations}"
+            </p>
+          </div>
+        )}
+        <div className="mt-2 text-[10px] text-text-dim text-right font-medium">
+          Enviado por: <span className="text-text-main font-semibold">{censo.publisherName}</span>
+        </div>
+      </div>
+
+      {/* Suggested matches */}
+      {matchedTerritories.length > 0 && (
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-whatsapp uppercase tracking-wider">Territórios Sugeridos (Mesma Rua)</label>
+          <div className="space-y-2 max-h-56 pr-1 overflow-y-auto">
+            {matchedTerritories.map((m, idx) => (
+              <div key={idx} className="border border-whatsapp/20 bg-whatsapp/[0.02] hover:bg-whatsapp/[0.05] p-3 rounded-xl flex flex-col gap-2 transition-colors">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-text-main text-xs truncate">{m.bairro.name}</div>
+                    <div className="font-semibold text-text-dim text-xs">Território {m.territorio.name}</div>
+                    <div className="text-[10px] text-text-dim mt-1 flex flex-wrap gap-1">
+                      <span>{m.matchCount} {m.matchCount === 1 ? 'endereço correspondente' : 'endereços correspondentes'}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleAssign(m.territorio.id)}
+                    className="bg-whatsapp hover:bg-green-600 active:scale-[0.98] text-white font-bold py-1.5 px-3 rounded-lg text-xs cursor-pointer flex shrink-0 transition-all border border-transparent shadow-sm"
+                  >
+                    Vincular
+                  </button>
+                </div>
+                
+                {/* Glance addresses */}
+                <div className="bg-bg border border-border/80 rounded-lg p-2 max-h-24 overflow-y-auto space-y-1">
+                  {Object.entries(
+                    m.territorio.enderecos.reduce((acc, curr) => {
+                      if (!acc[curr.street]) acc[curr.street] = [];
+                      acc[curr.street].push(curr.number);
+                      return acc;
+                    }, {} as Record<string, string[]>)
+                  ).map(([street, numbers]) => (
+                    <div key={street} className="text-[10px] leading-tight">
+                      <span className="font-semibold text-text-main pr-1">{street}:</span>
+                      <span className="text-text-dim">{numbers.join(', ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Manual select & street display */}
+      <div className="pt-3 border-t border-border space-y-3">
+        <label className="block text-xs font-bold text-text-dim uppercase tracking-wider">Vincular Manualmente</label>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-text-dim mb-1">Bairro</label>
+            <select
+              value={bairroId}
+              onChange={e => setBairroId(e.target.value)}
+              className="w-full bg-bg border border-border text-text-main rounded-lg p-2 text-sm outline-none focus:border-primary"
+            >
+              {db.bairros.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-text-dim mb-1">Território</label>
+            <select
+              value={territorioId}
+              disabled={!bairroId || currentTerritorios.length === 0}
+              onChange={e => setTerritorioId(e.target.value)}
+              className="w-full bg-bg border border-border text-text-main rounded-lg p-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+            >
+              {currentTerritorios.map(t => (
+                <option key={t.id} value={t.id}>Território {t.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Existing streets check */}
+        {territorioId && Object.keys(selectedTerritorioStreets).length > 0 && (
+          <div className="bg-bg border border-border/80 rounded-xl p-3">
+            <span className="text-[11px] font-semibold text-text-dim block mb-2">Endereços neste território:</span>
+            <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+              {Object.entries(selectedTerritorioStreets).map(([st, nums]) => (
+                <div key={st} className="text-[10px] leading-tight bg-surface-accent border border-border/50 p-2 rounded-lg">
+                  <span className="font-semibold text-text-main pr-1 block mb-0.5">{st}</span>
+                  <span className="text-text-dim">{nums.join(', ')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {territorioId && Object.keys(selectedTerritorioStreets).length === 0 && (
+          <div className="bg-bg border border-border/80 rounded-xl p-3 text-center text-xs text-text-dim italic">
+            Nenhuma rua cadastrada neste território.
+          </div>
+        )}
+
+        <button
+          onClick={() => handleAssign(territorioId)}
+          disabled={!territorioId}
+          className="w-full py-2.5 bg-primary hover:bg-opacity-90 active:scale-[0.98] disabled:bg-primary/50 text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+        >
+          Confirmar Vínculo Manual
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const Dashboard: React.FC = () => {
   const { db, addBairro, addTerritorio, addEndereco, updateEndereco, updateTerritorio } = useDatabase();
   const { user } = useAuth();
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [censos, setCensos] = useState<any[]>([]);
+  const [notificationTab, setNotificationTab] = useState<'feedbacks' | 'censo'>('feedbacks');
   
   const [modalState, setModalState] = useState<any>({ type: 'none' });
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -36,6 +282,28 @@ export const Dashboard: React.FC = () => {
     });
     return () => unsubscribe();
   }, [user]);
+
+  // --- Censo Submission Logic ---
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(firestoreDb, 'censos'), where('ownerUid', '==', user.uid), where('read', '==', false));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }) as any);
+      data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      setCensos(data);
+    }, (error) => {
+      console.error('Firestore Error loading censos: ', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const markCensoAsRead = async (docId: string) => {
+    try {
+      await updateDoc(doc(firestoreDb, 'censos', docId), { read: true });
+    } catch (e) {
+      console.error('Error marking censo as read', e);
+    }
+  };
 
   const markAsRead = async (docId: string) => {
     try { await updateDoc(doc(firestoreDb, 'feedbacks', docId), { read: true }); } catch (e) { console.error(e); }
@@ -282,96 +550,170 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Notifications */}
+        {/* Right Column: Notifications & Censo */}
         <div className="order-1 lg:order-2 lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
           <div className="bg-surface border border-border rounded-2xl flex flex-col flex-1 max-h-[600px] overflow-hidden">
-            <div className="p-5 border-b border-border flex items-center sticky top-0 bg-surface z-10">
-              <Bell size={20} className="text-primary mr-2" />
-              <h3 className="font-semibold text-lg text-text-main">Notificações</h3>
-              {feedbacks.length > 0 && <span className="ml-auto bg-primary text-white px-2 py-0.5 rounded-full text-xs font-bold">{feedbacks.length} novos</span>}
+            {/* Header: Tabs */}
+            <div className="p-3 border-b border-border flex items-center gap-1.5 bg-surface sticky top-0 z-10 shrink-0">
+              <button
+                onClick={() => setNotificationTab('feedbacks')}
+                className={`flex-1 flex items-center justify-center py-2 px-3 rounded-xl text-xs font-semibold separation-all transition-all ${
+                  notificationTab === 'feedbacks'
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm'
+                    : 'text-text-dim hover:bg-surface-accent hover:text-text-main border border-transparent'
+                }`}
+              >
+                <Bell size={14} className="mr-1.5" />
+                Vitrine {feedbacks.length > 0 && <span className="ml-1.5 px-1.5 py-0.2 bg-primary text-white rounded-full text-[9px] font-extrabold">{feedbacks.length}</span>}
+              </button>
+              <button
+                onClick={() => setNotificationTab('censo')}
+                className={`flex-1 flex items-center justify-center py-2 px-3 rounded-xl text-xs font-semibold separation-all transition-all ${
+                  notificationTab === 'censo'
+                    ? 'bg-secondary/10 text-secondary border border-secondary/20 shadow-sm'
+                    : 'text-text-dim hover:bg-surface-accent hover:text-text-main border border-transparent'
+                }`}
+              >
+                <Plus size={14} className="mr-1.5" />
+                Censo {censos.length > 0 && <span className="ml-1.5 px-1.5 py-0.2 bg-secondary text-white rounded-full text-[9px] font-extrabold">{censos.length}</span>}
+              </button>
             </div>
             
             <div className="p-0 overflow-y-auto flex-1">
-              {feedbacks.length === 0 ? (
-                <div className="p-8 text-center text-text-dim flex flex-col items-center">
-                  <Bell size={32} className="mb-2 opacity-20" />
-                  Nenhuma notificação nova.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {feedbacks.map(f => {
-                    let parsedNotes: any = {};
-                    try { parsedNotes = JSON.parse(f.notes); } catch(e) {}
-                    const isClaim = !!parsedNotes._CLAIM_;
+              {notificationTab === 'feedbacks' ? (
+                /* --- Feedbacks render --- */
+                feedbacks.length === 0 ? (
+                  <div className="p-8 text-center text-text-dim flex flex-col items-center">
+                    <Bell size={32} className="mb-2 opacity-20" />
+                    Nenhuma notificação da Vitrine.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {feedbacks.map(f => {
+                      let parsedNotes: any = {};
+                      try { parsedNotes = JSON.parse(f.notes); } catch(e) {}
+                      const isClaim = !!parsedNotes._CLAIM_;
 
-                    let bName = 'Desconhecido';
-                    let tName = 'Desconhecido';
-                    for (const b of db.bairros) {
-                      if (b.id === f.bairroId) {
-                        bName = b.name;
-                        for (const t of b.territorios) {
-                          if (t.id === f.territorioId) {
-                            tName = t.name; break;
+                      let bName = 'Desconhecido';
+                      let tName = 'Desconhecido';
+                      for (const b of db.bairros) {
+                        if (b.id === f.bairroId) {
+                          bName = b.name;
+                          for (const t of b.territorios) {
+                            if (t.id === f.territorioId) {
+                              tName = t.name; break;
+                            }
                           }
+                          break;
                         }
-                        break;
                       }
-                    }
 
-                    return (
-                      <div key={f.docId} className="p-4 hover:bg-surface-accent/50 transition-colors">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isClaim ? 'bg-primary/20 text-primary' : 'bg-whatsapp/20 text-whatsapp'}`}>
-                            {isClaim ? 'PEDIDO' : 'RELATÓRIO'}
-                          </span>
-                          <span className="text-[10px] text-text-dim">{f.createdAt ? format(f.createdAt.toDate(), 'dd/MM HH:mm') : ''}</span>
-                        </div>
-                        <div className="font-bold text-text-main text-sm mt-2">{f.publisherName}</div>
-                        <div className="text-xs text-text-dim mb-3">
-                          {isClaim ? 'Pegou para trabalhar' : 'Enviou um relatório'} - <span className="text-text-main font-medium">{bName} / {tName}</span>
-                        </div>
+                      return (
+                        <div key={f.docId} className="p-4 hover:bg-surface-accent/50 transition-colors">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isClaim ? 'bg-primary/20 text-primary' : 'bg-whatsapp/20 text-whatsapp'}`}>
+                              {isClaim ? 'PEDIDO' : 'RELATÓRIO'}
+                            </span>
+                            <span className="text-[10px] text-text-dim">{f.createdAt ? format(f.createdAt.toDate(), 'dd/MM HH:mm') : ''}</span>
+                          </div>
+                          <div className="font-bold text-text-main text-sm mt-2">{f.publisherName}</div>
+                          <div className="text-xs text-text-dim mb-3">
+                            {isClaim ? 'Pegou para trabalhar' : 'Enviou um relatório'} - <span className="text-text-main font-medium">{bName} / {tName}</span>
+                          </div>
 
-                        {!isClaim && Object.entries(parsedNotes).length > 0 && (
-                          <div className="bg-bg rounded-lg border border-border p-2 mb-3 max-h-24 overflow-y-auto space-y-2">
-                            {Object.entries(parsedNotes).map(([id, noteData]: [string, any]) => {
-                                let addressName = '...';
-                                for (const b of db.bairros) {
-                                  if (b.id === f.bairroId) {
-                                    for (const t of b.territorios) {
-                                      if (t.id === f.territorioId) {
-                                        const end = t.enderecos.find((e:any) => e.id === id);
-                                        if (end) addressName = `${end.street}, ${end.number}`;
+                          {!isClaim && Object.entries(parsedNotes).length > 0 && (
+                            <div className="bg-bg rounded-lg border border-border p-2 mb-3 max-h-24 overflow-y-auto space-y-2">
+                              {Object.entries(parsedNotes).map(([id, noteData]: [string, any]) => {
+                                  let addressName = '...';
+                                  for (const b of db.bairros) {
+                                    if (b.id === f.bairroId) {
+                                      for (const t of b.territorios) {
+                                        if (t.id === f.territorioId) {
+                                          const end = t.enderecos.find((e:any) => e.id === id);
+                                          if (end) addressName = `${end.street}, ${end.number}`;
+                                        }
                                       }
                                     }
                                   }
-                                }
-                                const isStringMode = typeof noteData === 'string';
-                                const obs = isStringMode ? noteData : noteData.obs;
-                                const status = isStringMode ? undefined : noteData.status;
+                                  const isStringMode = typeof noteData === 'string';
+                                  const obs = isStringMode ? noteData : noteData.obs;
+                                  const status = isStringMode ? undefined : noteData.status;
 
-                                return (
-                                  <div key={id} className="text-[10px] border-b border-border/50 pb-1 last:border-0 last:pb-0">
-                                    <span className="font-semibold text-text-main block">{addressName}</span>
-                                    {status && <span className="text-primary italic mr-1">[{status}]</span>}
-                                    {obs && <span className="text-text-dim break-words">"{String(obs)}"</span>}
-                                  </div>
-                                );
-                            })}
+                                  return (
+                                    <div key={id} className="text-[10px] border-b border-border/50 pb-1 last:border-0 last:pb-0">
+                                      <span className="font-semibold text-text-main block">{addressName}</span>
+                                      {status && <span className="text-primary italic mr-1">[{status}]</span>}
+                                      {obs && <span className="text-text-dim break-words">"{String(obs)}"</span>}
+                                    </div>
+                                  );
+                              })}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2">
+                            <button onClick={() => applyNotes(f)} className="flex-1 bg-surface-accent text-text-main border border-border py-1.5 rounded-md text-xs font-semibold hover:bg-border transition-colors cursor-pointer">
+                              {isClaim ? 'Aprovar' : 'Aplicar'}
+                            </button>
+                            <button onClick={() => markAsRead(f.docId)} className="flex-1 text-text-dim py-1.5 rounded-md text-xs font-semibold hover:text-red-400 transition-colors cursor-pointer">
+                              Dispensar
+                            </button>
                           </div>
-                        )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                /* --- Censo renders --- */
+                censos.length === 0 ? (
+                  <div className="p-8 text-center text-text-dim flex flex-col items-center">
+                    <Plus size={32} className="mb-2 opacity-20" />
+                    Nenhum censo pendente.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {censos.map(c => (
+                      <div key={c.docId} className="p-4 hover:bg-surface-accent/50 transition-colors">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-secondary/10 text-secondary border border-secondary/20 uppercase tracking-wide">
+                            NOVO ENDEREÇO
+                          </span>
+                          <span className="text-[10px] text-text-dim">{c.createdAt ? format(c.createdAt.toDate(), 'dd/MM HH:mm') : ''}</span>
+                        </div>
+                        <div className="font-bold text-text-main text-sm mt-2">{c.publisherName}</div>
+                        
+                        <div className="bg-bg rounded-xl border border-border p-3 my-3 text-xs space-y-1">
+                          <div>
+                            <span className="text-text-dim">Rua:</span> <span className="font-bold text-text-main">{c.street}, {c.number}</span>
+                          </div>
+                          <div>
+                            <span className="text-text-dim">Bairro sugerido:</span> <span className="font-semibold text-text-main">{c.bairroName}</span>
+                          </div>
+                          {c.observations && (
+                            <div className="pt-1.5 border-t border-border/50 text-[11px] text-text-dim italic">
+                              "{c.observations}"
+                            </div>
+                          )}
+                        </div>
 
                         <div className="flex gap-2">
-                          <button onClick={() => applyNotes(f)} className="flex-1 bg-surface-accent text-text-main border border-border py-1.5 rounded-md text-xs font-semibold hover:bg-border transition-colors">
-                            {isClaim ? 'Aprovar' : 'Aplicar'}
+                          <button 
+                            onClick={() => setModalState({ type: 'assign_censo', censo: c })} 
+                            className="flex-1 bg-secondary hover:bg-opacity-95 text-white py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer shadow-sm"
+                          >
+                            Vincular
                           </button>
-                          <button onClick={() => markAsRead(f.docId)} className="flex-1 text-text-dim py-1.5 rounded-md text-xs font-semibold hover:text-red-400 transition-colors">
+                          <button 
+                            onClick={() => markCensoAsRead(c.docId)} 
+                            className="flex-1 text-text-dim py-1.5 rounded-md text-xs font-semibold hover:text-red-400 transition-colors cursor-pointer"
+                          >
                             Dispensar
                           </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -386,10 +728,22 @@ export const Dashboard: React.FC = () => {
           modalState.type === 'smart_add_endereco' ? 'Adicionar Endereço Rápido' :
           modalState.type === 'add_bairro' ? 'Novo Bairro' :
           modalState.type === 'add_territorio' ? 'Novo Território' : 
-          modalState.type === 'preview_territorio' ? 'Visualizar Território' : ''
+          modalState.type === 'preview_territorio' ? 'Visualizar Território' : 
+          modalState.type === 'assign_censo' ? 'Vincular Endereço do Censo' : ''
         }
       >
         <div className="space-y-4">
+          {modalState.type === 'assign_censo' && modalState.censo && (
+            <AssignCensoModalContent
+              censo={modalState.censo}
+              db={db}
+              addEndereco={addEndereco}
+              onSuccess={(id) => {
+                setModalState({ type: 'none' });
+              }}
+            />
+          )}
+
           {modalState.type === 'preview_territorio' && modalState.bairro && modalState.territorio && (
             <div className="flex flex-col gap-4">
               <div className="bg-surface-accent p-4 rounded-xl border border-border">

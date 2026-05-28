@@ -116,6 +116,20 @@ service cloud.firestore {
               data.updatedAt is timestamp;
     }
 
+    function isValidCenso(data) {
+       return data.keys().hasAll(['id', 'ownerUid', 'publisherName', 'street', 'number', 'bairroName', 'observations', 'createdAt', 'read']) && 
+              data.keys().size() == 9 &&
+              data.id is string &&
+              data.ownerUid is string &&
+              data.publisherName is string && data.publisherName.size() > 0 && data.publisherName.size() < 100 &&
+              data.street is string && data.street.size() > 0 && data.street.size() < 200 &&
+              data.number is string && data.number.size() > 0 && data.number.size() < 50 &&
+              data.bairroName is string && data.bairroName.size() > 0 && data.bairroName.size() < 100 &&
+              data.observations is string && data.observations.size() < 1000 &&
+              data.createdAt is timestamp &&
+              data.read is bool;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -167,6 +181,18 @@ service cloud.firestore {
                     isValidFeedback(request.resource.data) &&
                     request.resource.data.ownerUid == resource.data.ownerUid &&
                     request.resource.data.shareId == resource.data.shareId;
+      allow delete: if isDocOwner();
+    }
+
+    match /censos/{censoId} {
+      // Only the owner can read feedbacks submitted to them
+      allow read: if isAuthenticated() && resource.data.ownerUid == request.auth.uid;
+      // Anyone can create a feedback (even unauthenticated users visiting the feedback link)
+      allow create: if isValidCenso(request.resource.data) && request.resource.data.id == censoId;
+      // Only the owner can mark it as read OR delete it
+      allow update: if isDocOwner() &&
+                    isValidCenso(request.resource.data) &&
+                    request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if isDocOwner();
     }
   }
