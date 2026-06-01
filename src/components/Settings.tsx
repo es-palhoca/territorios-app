@@ -6,7 +6,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 
 export const Settings: React.FC = () => {
-  const { db, exportDb, importDb, importState, startBulkImport, updateSettings, clearDatabase } = useDatabase();
+  const { db, exportDb, importDb, importState, startBulkImport, updateSettings, clearDatabase, history, undo, splitLargeTerritories } = useDatabase();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -400,6 +400,57 @@ export const Settings: React.FC = () => {
             Importar Backup
           </button>
         </div>
+
+        {/* Maintenance */}
+        <div className="bg-surface p-4 md:p-5 rounded-xl border border-border">
+          <h3 className="text-lg font-medium text-text-main mb-2 flex items-center">
+            <Sparkles className="mr-2 text-text-main" size={20} />
+            Manutenção Inteligente
+          </h3>
+          <p className="text-sm text-text-dim mb-4">
+            Ajuste automaticamente os territórios para otimizar o trabalho. Ao clicar neste botão, todos os territórios que contêm mais de 6 endereços serão divididos ao meio em dois novos territórios.
+          </p>
+          <button
+            onClick={() => {
+              splitLargeTerritories();
+              setStatus({ type: 'success', message: 'Territórios grandes foram divididos com sucesso!' });
+              setTimeout(() => setStatus(null), 3000);
+            }}
+            className="w-full sm:w-auto px-4 py-2 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-md font-medium transition-colors"
+          >
+            Dividir Territórios Grandes
+          </button>
+        </div>
+
+        {/* History Log */}
+        {history && history.length > 0 && (
+          <div className="bg-surface p-4 md:p-5 rounded-xl border border-border">
+            <h3 className="text-lg font-medium text-text-main mb-2">Últimas Alterações (Log)</h3>
+            <p className="text-sm text-text-dim mb-4">
+              Este é o registro das últimas 10 alterações que você fez (adicionar, editar ou apagar itens). Você pode desfazer a base de dados para voltar a um momento anterior.
+            </p>
+            <div className="space-y-2">
+              {history.map(item => (
+                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-bg border border-border rounded-lg">
+                  <div>
+                    <div className="font-medium text-text-main text-sm">{item.description}</div>
+                    <div className="text-xs text-text-dim mt-0.5">{new Date(item.timestamp).toLocaleString()}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      undo(item.id);
+                      setStatus({ type: 'success', message: 'Base de dados restaurada para o momento selecionado!' });
+                      setTimeout(() => setStatus(null), 3000);
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/20 rounded-md font-bold transition-colors text-xs uppercase"
+                  >
+                    Desfazer para cá
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Danger Zone */}
         <div className="bg-red-500/5 p-4 md:p-5 rounded-xl border border-red-500/20 mt-12">

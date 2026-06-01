@@ -25,6 +25,13 @@ export interface Bairro {
   manualOrder?: boolean;
 }
 
+export interface HistoryEntry {
+  id: string;
+  timestamp: number;
+  description: string;
+  snapshot: Database;
+}
+
 export interface Database {
   bairros: Bairro[];
   chats?: ChatSession[];

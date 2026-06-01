@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Bairro, Database, Endereco, Territorio, ChatSession } from '../types';
+import { Bairro, Database, Endereco, Territorio, ChatSession, HistoryEntry } from '../types';
 import { processBulkImport } from '../services/ai';
 import { useAuth } from './AuthContext';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -37,6 +37,9 @@ interface DatabaseContextType {
   importState: ImportState;
   startBulkImport: (text: string) => Promise<void>;
   getDb: () => Database;
+  history: HistoryEntry[];
+  undo: (id: string) => void;
+  splitLargeTerritories: () => void;
 }
 
 const defaultDb: Database = { bairros: [], chats: [] };
@@ -93,6 +96,69 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const nextState = typeof updater === 'function' ? updater(dbRef.current) : updater;
     dbRef.current = nextState;
     setDbState(nextState);
+  };
+
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  const pushHistory = (description: string) => {
+    setHistory(prev => {
+      const newEntry: HistoryEntry = {
+        id: uuidv4(),
+        timestamp: Date.now(),
+        description,
+        snapshot: JSON.parse(JSON.stringify(dbRef.current))
+      };
+      return [newEntry, ...prev].slice(0, 10);
+    });
+  };
+
+  const undo = (id: string) => {
+    const entryIndex = history.findIndex(h => h.id === id);
+    if (entryIndex === -1) return;
+    const entry = history[entryIndex];
+    setDb(entry.snapshot);
+    setHistory(prev => prev.slice(entryIndex + 1));
+  };
+
+  const splitLargeTerritories = () => {
+    pushHistory('Divisão de territórios grandes (> 6 endereços)');
+    setDb(prev => {
+      const newBairros = prev.bairros.map(bairro => {
+        let maxSuffix = 0;
+        bairro.territorios.forEach(t => {
+          const m = String(t.name).match(/(\d+)$/);
+          if (m) {
+            const num = parseInt(m[1], 10);
+            if (num > maxSuffix) maxSuffix = num;
+          }
+        });
+
+        const newTerritorios: Territorio[] = [];
+        let currBairroMax = maxSuffix;
+
+        bairro.territorios.forEach(t => {
+          if (t.enderecos && t.enderecos.length > 6) {
+            const half = Math.ceil(t.enderecos.length / 2);
+            const t1Enderecos = t.enderecos.slice(0, half);
+            const t2Enderecos = t.enderecos.slice(half);
+
+            currBairroMax++;
+            const newNameMatch = String(t.name).match(/^(.*?)(\d+)$/);
+            let newNamePrefix = newNameMatch ? newNameMatch[1] : `${t.name} `;
+            const newName = `${newNamePrefix}${currBairroMax}`.trim();
+
+            const splitT1 = { ...t, enderecos: t1Enderecos };
+            const splitT2 = { ...t, id: uuidv4(), name: newName, enderecos: t2Enderecos };
+            
+            newTerritorios.push(splitT1, splitT2);
+          } else {
+            newTerritorios.push(t);
+          }
+        });
+        return { ...bairro, territorios: newTerritorios };
+      });
+      return { ...prev, bairros: newBairros };
+    });
   };
 
   const [importState, setImportState] = useState<ImportState>({
@@ -165,12 +231,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [db, user, isInitialLoad]);
 
   const addBairro = (name: string) => {
+    pushHistory(`Adicionado bairro: ${name}`);
     const newBairro: Bairro = { id: uuidv4(), name, territorios: [] };
     setDb(prev => ({ ...prev, bairros: [...prev.bairros, newBairro] }));
     return newBairro;
   };
 
   const updateBairro = (id: string, name: string) => {
+    pushHistory(`Atualizado bairro: ${name}`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => b.id === id ? { ...b, name } : b)
@@ -178,6 +246,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const removeBairro = (id: string) => {
+    pushHistory(`Bairro removido`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.filter(b => b.id !== id)
@@ -190,6 +259,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.error(`Bairro com ID ${bairroId} não encontrado.`);
       return null;
     }
+    pushHistory(`Adicionado território: ${name}`);
     const newTerritorio: Territorio = { id: uuidv4(), bairroId, name, enderecos: [] };
     setDb(prev => ({
       ...prev,
@@ -203,6 +273,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateTerritorio = (id: string, name: string, lastAssignedDate?: string) => {
+    pushHistory(`Atualizado território: ${name || id}`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
@@ -215,6 +286,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const removeTerritorio = (id: string) => {
+    pushHistory(`Território removido`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
@@ -236,6 +308,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.error(`Território com ID ${territorioId} não encontrado.`);
       return null;
     }
+    pushHistory(`Adicionado endereço: ${street}, ${number}`);
     const newEndereco: Endereco = { id: uuidv4(), street, number, observations, status, statusComment, statusDate };
     setDb(prev => ({
       ...prev,
@@ -252,6 +325,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateEndereco = (id: string, street: string, number: string, observations?: string, status?: string, statusComment?: string, statusDate?: string) => {
+    pushHistory(`Atualizado endereço: ${street}, ${number}`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
@@ -267,6 +341,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const removeEndereco = (id: string) => {
+    pushHistory(`Endereço removido`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
@@ -529,7 +604,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       markTerritorioAssigned,
       saveChat, deleteChat,
       exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio,
-      importState, startBulkImport
+      importState, startBulkImport, history, undo, splitLargeTerritories
     }}>
       {children}
     </DatabaseContext.Provider>
