@@ -122,7 +122,7 @@ export default function MisAsignaciones() {
             <div className="text-xs text-text-dim font-medium mb-1">Progreso</div>
             <div className="flex items-center gap-2">
               <div className="w-16 h-2 bg-bg rounded-full overflow-hidden">
-                <div className="h-full bg-primary" style={{ width: \`\${porcentaje}%\` }} />
+                <div className="h-full bg-primary" style={{ width: `${porcentaje}%` }} />
               </div>
               <span className="text-xs font-bold text-primary">{porcentaje}%</span>
             </div>
@@ -135,9 +135,9 @@ export default function MisAsignaciones() {
             <p className="text-text-dim text-center py-8">No hay direcciones en este territorio.</p>
           ) : (
             territorio.enderecos.map(end => (
-              <div key={end.id} className={\`bg-surface border \${end.status === 'VISITADO' ? 'border-whatsapp/30 bg-whatsapp/5' : end.status === 'AUSENTE' ? 'border-orange-500/30' : end.status === 'RECHAZO' ? 'border-error/30' : 'border-border'} rounded-xl p-4 shadow-sm\`}>
+              <div key={end.id} className={`bg-surface border ${end.status === 'VISITADO' ? 'border-whatsapp/30 bg-whatsapp/5' : end.status === 'AUSENTE' ? 'border-orange-500/30' : end.status === 'RECHAZO' ? 'border-error/30' : 'border-border'} rounded-xl p-4 shadow-sm`}>
                 <div className="flex gap-3 mb-3">
-                  <div className={\`mt-1 shrink-0 p-2 rounded-full \${end.status === 'VISITADO' ? 'bg-whatsapp/10 text-whatsapp' : end.status === 'AUSENTE' ? 'bg-orange-500/10 text-orange-500' : 'bg-surface-accent text-text-dim'}\`}>
+                  <div className={`mt-1 shrink-0 p-2 rounded-full ${end.status === 'VISITADO' ? 'bg-whatsapp/10 text-whatsapp' : end.status === 'AUSENTE' ? 'bg-orange-500/10 text-orange-500' : 'bg-surface-accent text-text-dim'}`}>
                     <MapPin size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -161,19 +161,19 @@ export default function MisAsignaciones() {
                 <div className="flex gap-2 mt-2 pt-3 border-t border-border/50">
                   <button 
                     onClick={() => handleUpdateStatus(end.id, end, end.status === 'VISITADO' ? undefined : 'VISITADO')}
-                    className={\`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all \${end.status === 'VISITADO' ? 'bg-whatsapp text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-whatsapp/10 hover:text-whatsapp'}\`}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'VISITADO' ? 'bg-whatsapp text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-whatsapp/10 hover:text-whatsapp'}`}
                   >
                     <Check size={14} /> Visitado
                   </button>
                   <button 
                     onClick={() => handleUpdateStatus(end.id, end, end.status === 'AUSENTE' ? undefined : 'AUSENTE')}
-                    className={\`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all \${end.status === 'AUSENTE' ? 'bg-orange-500 text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-orange-500/10 hover:text-orange-500'}\`}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'AUSENTE' ? 'bg-orange-500 text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-orange-500/10 hover:text-orange-500'}`}
                   >
                     <Clock size={14} /> Ausente
                   </button>
                   <button 
                     onClick={() => handleUpdateStatus(end.id, end, end.status === 'RECHAZO' ? undefined : 'RECHAZO')}
-                    className={\`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all \${end.status === 'RECHAZO' ? 'bg-error text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-error/10 hover:text-error'}\`}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'RECHAZO' ? 'bg-error text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-error/10 hover:text-error'}`}
                   >
                     <X size={14} /> No Tocar
                   </button>
@@ -241,14 +241,14 @@ export default function MisAsignaciones() {
                 </div>
                 
                 <div className="text-sm text-text-dim mb-4 flex flex-col gap-2">
-                  <div className={\`flex items-center gap-1.5 \${isOld ? 'text-orange-500 font-medium' : ''}\`}>
+                  <div className={`flex items-center gap-1.5 ${isOld ? 'text-orange-500 font-medium' : ''}`}>
                     {isOld ? <AlertCircle size={14} /> : <Clock size={14} />} 
                     <span>Lo tienes hace {days} días</span>
                   </div>
                   
                   <div className="flex items-center gap-2 mt-1">
                     <div className="flex-1 h-2 bg-bg rounded-full overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: \`\${porcentaje}%\` }} />
+                      <div className="h-full bg-primary" style={{ width: `${porcentaje}%` }} />
                     </div>
                     <span className="text-xs font-bold text-text-main">{porcentaje}%</span>
                   </div>
