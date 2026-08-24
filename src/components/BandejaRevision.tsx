@@ -9,7 +9,7 @@ export default function BandejaRevision() {
   const todasLasDirecciones = db.bairros.flatMap(b => b.territorios.flatMap(t => t.enderecos.map(e => ({ ...e, territorioName: t.name, bairroName: b.name }))));
 
   const gpsPendientes = todasLasDirecciones.filter(e => e.gps_status === 'PENDING');
-  const estadosCriticos = todasLasDirecciones.filter(e => e.status === 'NO_EXTRANJERO' || e.status === 'NO_VISITAR');
+  const estadosCriticos = todasLasDirecciones.filter(e => e.status === 'NO_EXTRANJERO');
 
   const openMap = (lat: number, lng: number) => {
     window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useDatabase } from '../context/DatabaseContext';
 import { useAuth } from '../context/AuthContext';
 import { Clock, ChevronLeft, MapPin, Check, X, AlertCircle, MessageSquare, Send, Plus, Globe, CalendarX2, Edit2, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addDays, differenceInDays } from 'date-fns';
 import { Endereco } from '../types';
 
 interface Visita {
@@ -246,10 +246,18 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
         ) : (
           validEnderecos.map((end: any) => {
             const isNoExtranjero = end.status === 'NO_EXTRANJERO';
+            const isNoVisitar = end.status === 'NO_VISITAR';
             const historial = visitas[end.id] || [];
 
+            let remainingDays = 0;
+            let targetDate = new Date();
+            if (isNoVisitar && end.status_date) {
+              targetDate = addDays(new Date(end.status_date), 90);
+              remainingDays = differenceInDays(targetDate, new Date());
+            }
+
             return (
-            <div key={end.id} className={`bg-surface border ${end.status === 'HECHO' ? 'border-whatsapp/30 bg-whatsapp/5' : end.status === 'NO_EN_CASA' ? 'border-orange-500/30' : end.status === 'NO_VISITAR' || end.status === 'NO_EXTRANJERO' ? 'border-error/30' : 'border-border'} rounded-xl p-4 shadow-sm transition-all`}>
+            <div key={end.id} className={`bg-surface border ${end.status === 'HECHO' ? 'border-whatsapp/30 bg-whatsapp/5' : end.status === 'NO_EN_CASA' ? 'border-orange-500/30' : end.status === 'NO_VISITAR' ? 'border-yellow-500/30' : end.status === 'NO_EXTRANJERO' ? 'border-error/30' : 'border-border'} rounded-xl p-4 shadow-sm transition-all`}>
               
               {isNoExtranjero ? (
                 <div className="flex items-center justify-between">
@@ -272,7 +280,7 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
               ) : (
                 <>
                   <div className="flex gap-3 mb-3">
-                    <div className={`mt-1 shrink-0 p-2 rounded-full ${end.status === 'HECHO' ? 'bg-whatsapp/10 text-whatsapp' : end.status === 'NO_EN_CASA' ? 'bg-orange-500/10 text-orange-500' : end.status === 'NO_VISITAR' ? 'bg-error/10 text-error' : 'bg-surface-accent text-text-dim'}`}>
+                    <div className={`mt-1 shrink-0 p-2 rounded-full ${end.status === 'HECHO' ? 'bg-whatsapp/10 text-whatsapp' : end.status === 'NO_EN_CASA' ? 'bg-orange-500/10 text-orange-500' : end.status === 'NO_VISITAR' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-surface-accent text-text-dim'}`}>
                       <MapPin size={18} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -296,6 +304,14 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
                       </div>
                       {end.observations && (
                         <p className="text-sm text-text-dim mt-1 line-clamp-2">{end.observations}</p>
+                      )}
+                      {isNoVisitar && end.status_date && (
+                        <div className={`mt-2 text-xs font-bold px-3 py-2 rounded-lg inline-flex items-center gap-1 ${remainingDays > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-whatsapp/10 text-whatsapp'}`}>
+                          <AlertCircle size={14} />
+                          {remainingDays > 0
+                            ? `No visitar (Faltan ${remainingDays} días - hasta el ${format(targetDate, 'dd MMM')})`
+                            : `Período de 90 días cumplido. Ya se puede visitar.`}
+                        </div>
                       )}
                       <div className="flex flex-wrap gap-2 mt-2">
                           {!end.lat && (
