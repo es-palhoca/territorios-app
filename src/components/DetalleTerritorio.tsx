@@ -285,13 +285,13 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
                     </button>
                     <button 
                       onClick={() => requestUpdateStatus(end.id, end, end.status === 'NO_VISITAR' ? undefined : 'NO_VISITAR')}
-                      className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'NO_VISITAR' ? 'bg-error text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-error/10 hover:text-error'}`}
+                      className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'NO_VISITAR' ? 'bg-yellow-500 text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-yellow-500/10 hover:text-yellow-500'}`}
                     >
                       <CalendarX2 size={14} /> No visitar
                     </button>
                     <button 
                       onClick={() => requestUpdateStatus(end.id, end, 'NO_EXTRANJERO')}
-                      className="py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all bg-surface-accent text-error hover:bg-error hover:text-white"
+                      className="py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all bg-surface-accent text-text-main hover:bg-error/10 hover:text-error"
                     >
                       <Globe size={14} /> No es extranjero
                     </button>
