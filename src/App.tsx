@@ -12,10 +12,11 @@ import MisAsignaciones from './components/MisAsignaciones';
 import PanelGestion from './components/PanelGestion';
 import Configuracion from './components/Configuracion';
 import BandejaRevision from './components/BandejaRevision';
-import { Map, LogOut, Loader2, CheckCircle2, AlertCircle, Home, ClipboardList, Settings as SettingsIcon, Inbox } from 'lucide-react';
+import Estadisticas from './components/Estadisticas';
+import { Map, LogOut, Loader2, CheckCircle2, AlertCircle, Home, ClipboardList, Settings as SettingsIcon, Inbox, BarChart3 } from 'lucide-react';
 import { cn } from './lib/utils';
 
-type Tab = 'mis_asignaciones' | 'gestion' | 'configuracion' | 'revision';
+type Tab = 'mis_asignaciones' | 'gestion' | 'configuracion' | 'revision' | 'estadisticas';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('mis_asignaciones');
@@ -91,18 +92,32 @@ function AppContent() {
           </button>
 
           {canManage && (
-            <button
-              onClick={() => setActiveTab('gestion')}
-              className={cn(
-                "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
-                activeTab === 'gestion' 
-                  ? "bg-surface-accent text-text-main" 
-                  : "text-text-dim hover:bg-surface-accent hover:text-text-main"
-              )}
-            >
-              <ClipboardList size={18} />
-              Gestión de Territorios
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('gestion')}
+                className={cn(
+                  "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
+                  activeTab === 'gestion' 
+                    ? "bg-surface-accent text-text-main" 
+                    : "text-text-dim hover:bg-surface-accent hover:text-text-main"
+                )}
+              >
+                <ClipboardList size={18} />
+                Gestión de Territorios
+              </button>
+              <button
+                onClick={() => setActiveTab('estadisticas')}
+                className={cn(
+                  "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
+                  activeTab === 'estadisticas' 
+                    ? "bg-surface-accent text-text-main" 
+                    : "text-text-dim hover:bg-surface-accent hover:text-text-main"
+                )}
+              >
+                <BarChart3 size={18} />
+                Estadísticas
+              </button>
+            </>
           )}
         </nav>
 
@@ -152,6 +167,7 @@ function AppContent() {
         <div className="h-full w-full max-w-5xl mx-auto flex flex-col">
           {activeTab === 'mis_asignaciones' && <MisAsignaciones />}
           {activeTab === 'gestion' && canManage && <PanelGestion />}
+          {activeTab === 'estadisticas' && canManage && <Estadisticas />}
           {activeTab === 'configuracion' && isAdmin && <Configuracion />}
           {activeTab === 'revision' && isAdmin && <BandejaRevision />}
         </div>
@@ -171,16 +187,28 @@ function AppContent() {
         </button>
         
         {canManage && (
-          <button
-            onClick={() => setActiveTab('gestion')}
-            className={cn(
-              "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
-              activeTab === 'gestion' ? "text-primary" : "text-text-dim hover:text-text-main"
-            )}
-          >
-            <ClipboardList size={20} />
-            <span className="text-[10px] font-medium">Gestión</span>
-          </button>
+          <>
+            <button
+              onClick={() => setActiveTab('gestion')}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
+                activeTab === 'gestion' ? "text-primary" : "text-text-dim hover:text-text-main"
+              )}
+            >
+              <ClipboardList size={20} />
+              <span className="text-[10px] font-medium">Gestión</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('estadisticas')}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
+                activeTab === 'estadisticas' ? "text-primary" : "text-text-dim hover:text-text-main"
+              )}
+            >
+              <BarChart3 size={20} />
+              <span className="text-[10px] font-medium">Stats</span>
+            </button>
+          </>
         )}
 
         {isAdmin && (
