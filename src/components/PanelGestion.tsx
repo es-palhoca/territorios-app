@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useDatabase } from '../context/DatabaseContext';
-import { Map, Clock, CheckCircle2, User, Search } from 'lucide-react';
+import { Map, Clock, CheckCircle2, User, Search, Eye } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import type { UserProfile } from '../context/AuthContext';
+import DetalleTerritorio from './DetalleTerritorio';
 
 interface Asignacion {
   id: string;
@@ -21,6 +22,9 @@ export default function PanelGestion() {
   const [perfiles, setPerfiles] = useState<UserProfile[]>([]);
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estado para explorar territorio
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRelationalData();
@@ -92,6 +96,16 @@ export default function PanelGestion() {
     t.bairroName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (selectedTerritoryId) {
+    return (
+      <DetalleTerritorio 
+        territorioId={selectedTerritoryId} 
+        onClose={() => setSelectedTerritoryId(null)}
+        isManager={true} // Habilita edición
+      />
+    );
+  }
+
   return (
     <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-bg">
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -101,7 +115,7 @@ export default function PanelGestion() {
             Gestión de Territorios
           </h1>
           <p className="text-text-dim text-sm mt-1">
-            Asigna territorios a los publicadores o registra sus devoluciones.
+            Asigna territorios a los publicadores, registra devoluciones o explora su contenido.
           </p>
         </div>
         <div className="relative">
@@ -143,7 +157,7 @@ export default function PanelGestion() {
                   )}
                 </div>
 
-                <div className="mt-auto pt-4 border-t border-border">
+                <div className="mt-auto pt-4 border-t border-border space-y-3">
                   {t.asignacionActiva ? (
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-sm text-text-main bg-bg p-2.5 rounded-lg border border-border">
@@ -180,6 +194,13 @@ export default function PanelGestion() {
                       </button>
                     </div>
                   )}
+
+                  <button 
+                    onClick={() => setSelectedTerritoryId(t.id)}
+                    className="w-full bg-bg border border-border text-text-dim hover:text-primary font-medium py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                  >
+                    <Eye size={16} /> Explorar / Editar Territorio
+                  </button>
                 </div>
               </div>
             )
