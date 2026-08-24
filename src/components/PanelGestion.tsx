@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useDatabase } from '../context/DatabaseContext';
 import { Map, Clock, CheckCircle2, User, Search, Eye } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
-import type { UserProfile } from '../context/AuthContext';
+import { useAuth, type UserProfile } from '../context/AuthContext';
 import DetalleTerritorio from './DetalleTerritorio';
 
 interface Asignacion {
@@ -16,6 +16,8 @@ interface Asignacion {
 
 export default function PanelGestion() {
   const { db } = useDatabase();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'ADMIN';
   const [searchTerm, setSearchTerm] = useState('');
   
   // Datos relacionales
@@ -101,7 +103,7 @@ export default function PanelGestion() {
       <DetalleTerritorio 
         territorioId={selectedTerritoryId} 
         onClose={() => setSelectedTerritoryId(null)}
-        isManager={true} // Habilita edición
+        isManager={isAdmin} // Solo los ADMIN pueden editar direcciones
       />
     );
   }
