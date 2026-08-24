@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useDatabase } from '../context/DatabaseContext';
-import { Map, Clock, CheckCircle2, User, Search, Eye } from 'lucide-react';
+import { Map, MapPin, Clock, CheckCircle2, User, Search, Eye } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { useAuth, type UserProfile } from '../context/AuthContext';
 import DetalleTerritorio from './DetalleTerritorio';
@@ -98,6 +98,9 @@ export default function PanelGestion() {
     t.bairroName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalTerritorios = allTerritories.length;
+  const totalDirecciones = allTerritories.reduce((sum, t) => sum + (t.enderecos?.length || 0), 0);
+
   if (selectedTerritoryId) {
     return (
       <DetalleTerritorio 
@@ -116,9 +119,19 @@ export default function PanelGestion() {
             <Map size={24} className="text-primary" />
             Gestión de Territorios
           </h1>
-          <p className="text-text-dim text-sm mt-1">
+          <p className="text-text-dim text-sm mt-1 mb-3">
             Asigna territorios a los publicadores, registra devoluciones o explora su contenido.
           </p>
+          <div className="flex gap-3">
+            <div className="bg-surface-accent/50 px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-text-main flex items-center gap-1.5">
+              <Map size={14} className="text-primary" />
+              {totalTerritorios} Territorios
+            </div>
+            <div className="bg-surface-accent/50 px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-text-main flex items-center gap-1.5">
+              <MapPin size={14} className="text-primary" />
+              {totalDirecciones} Direcciones
+            </div>
+          </div>
         </div>
         <div className="relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim" />
