@@ -169,7 +169,12 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
       },
       (error) => {
         console.error(error);
-        alert("Error al obtener la ubicación: " + error.message);
+        let mensaje = "Error desconocido al obtener la ubicación.";
+        if (error.code === 1) mensaje = "Permiso denegado. Debes permitir que el navegador acceda a tu ubicación.";
+        if (error.code === 2) mensaje = "Ubicación no disponible. Por favor, asegúrate de que el GPS de tu celular esté ENCENDIDO.";
+        if (error.code === 3) mensaje = "Tiempo de espera agotado. Intenta nuevamente al aire libre.";
+        
+        alert("No se pudo capturar: " + mensaje);
         setCapturingGpsId(null);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
