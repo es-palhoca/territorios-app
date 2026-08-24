@@ -43,6 +43,7 @@ export default function MisAsignaciones() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newStreet, setNewStreet] = useState('');
   const [newNumber, setNewNumber] = useState('');
+  const [newObservations, setNewObservations] = useState('');
 
   useEffect(() => {
     fetchMisAsignaciones();
@@ -159,9 +160,10 @@ export default function MisAsignaciones() {
   const handleAddAddress = () => {
     if (!newStreet.trim() || !activeTerritoryId) return;
     
-    addEndereco(activeTerritoryId, newStreet.trim(), newNumber.trim() || 'S/N');
+    addEndereco(activeTerritoryId, newStreet.trim(), newNumber.trim() || 'S/N', newObservations.trim() || undefined);
     setNewStreet('');
     setNewNumber('');
+    setNewObservations('');
     setShowAddModal(false);
   };
 
@@ -398,6 +400,16 @@ export default function MisAsignaciones() {
                     onChange={(e) => setNewNumber(e.target.value)}
                     className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
                     placeholder="S/N"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-dim mb-1">Observaciones / Detalles</label>
+                  <textarea 
+                    value={newObservations}
+                    onChange={(e) => setNewObservations(e.target.value)}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none resize-none"
+                    placeholder="Ej. Peruano no respondió"
+                    rows={2}
                   />
                 </div>
                 <button 
