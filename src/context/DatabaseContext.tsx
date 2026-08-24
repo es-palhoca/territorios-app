@@ -1,10 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Bairro, Database, Endereco, Territorio, ChatSession, HistoryEntry } from '../types';
-import { processBulkImport } from '../services/ai';
 import { useAuth } from './AuthContext';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db as firestoreDb } from '../firebase';
+import { supabase } from '../lib/supabase';
 
 export interface ImportState {
   isProcessing: boolean;
@@ -18,7 +16,7 @@ interface DatabaseContextType {
   addBairro: (name: string) => Bairro;
   updateBairro: (id: string, name: string) => void;
   removeBairro: (id: string) => void;
-  addTerritorio: (bairroId: string, name: string) => Territorio;
+  addTerritorio: (bairroId: string, name: string) => Territorio | null;
   updateTerritorio: (id: string, name: string, lastAssignedDate?: string) => void;
   removeTerritorio: (id: string) => void;
   addEndereco: (territorioId: string, street: string, number: string, observations?: string, status?: string, statusComment?: string, statusDate?: string) => Endereco;
@@ -46,51 +44,15 @@ const defaultDb: Database = { bairros: [], chats: [] };
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 
-const cleanExpiredStatuses = (data: Database): Database => {
-  const nowMs = Date.now();
-  const TWENTY_DAYS_MS = 20 * 24 * 60 * 60 * 1000;
-  let changed = false;
-
-  const newBairros = data.bairros.map(b => {
-    const newTerritorios = b.territorios.map(t => {
-      const newEnderecos = t.enderecos.map(e => {
-        if (e.statusDate) {
-          const dateMs = new Date(e.statusDate).getTime();
-          if (nowMs - dateMs > TWENTY_DAYS_MS) {
-            changed = true;
-            const { status, statusComment, statusDate, ...rest } = e;
-            return rest;
-          }
-        }
-        return e;
-      });
-      return { ...t, enderecos: newEnderecos };
-    });
-    return { ...b, territorios: newTerritorios };
-  });
-
-  return changed ? { ...data, bairros: newBairros } : data;
-};
-
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [db, setDbState] = useState<Database>(() => {
-    // If not logged in but it has local data, maybe we load it initially, 
-    // but the final load should happen from Firestore when auth is ready
-    const saved = localStorage.getItem('territory_db');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved DB', e);
-      }
-    }
-    return defaultDb;
-  });
-
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-
+  const [db, setDbState] = useState<Database>(defaultDb);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const dbRef = useRef<Database>(db);
+
+  const [importState, setImportState] = useState<ImportState>({
+    isProcessing: false, progress: 0, status: 'idle'
+  });
 
   const setDb = (updater: Database | ((prev: Database) => Database)) => {
     const nextState = typeof updater === 'function' ? updater(dbRef.current) : updater;
@@ -98,513 +60,192 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setDbState(nextState);
   };
 
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-
   const pushHistory = (description: string) => {
-    setHistory(prev => {
-      const newEntry: HistoryEntry = {
-        id: uuidv4(),
-        timestamp: Date.now(),
-        description,
-        snapshot: JSON.parse(JSON.stringify(dbRef.current))
-      };
-      return [newEntry, ...prev].slice(0, 10);
-    });
+    setHistory(prev => [{ id: uuidv4(), timestamp: Date.now(), description, snapshot: JSON.parse(JSON.stringify(dbRef.current)) }, ...prev].slice(0, 10));
   };
 
   const undo = (id: string) => {
     const entryIndex = history.findIndex(h => h.id === id);
     if (entryIndex === -1) return;
-    const entry = history[entryIndex];
-    setDb(entry.snapshot);
+    setDb(history[entryIndex].snapshot);
     setHistory(prev => prev.slice(entryIndex + 1));
   };
 
-  const splitLargeTerritories = () => {
-    pushHistory('Divisão de territórios grandes (> 6 endereços)');
-    setDb(prev => {
-      const newBairros = prev.bairros.map(bairro => {
-        let maxSuffix = 0;
-        bairro.territorios.forEach(t => {
-          const m = String(t.name).match(/(\d+)$/);
-          if (m) {
-            const num = parseInt(m[1], 10);
-            if (num > maxSuffix) maxSuffix = num;
-          }
-        });
-
-        const newTerritorios: Territorio[] = [];
-        let currBairroMax = maxSuffix;
-
-        bairro.territorios.forEach(t => {
-          if (t.enderecos && t.enderecos.length > 6) {
-            const half = Math.ceil(t.enderecos.length / 2);
-            const t1Enderecos = t.enderecos.slice(0, half);
-            const t2Enderecos = t.enderecos.slice(half);
-
-            currBairroMax++;
-            const newNameMatch = String(t.name).match(/^(.*?)(\d+)$/);
-            let newNamePrefix = newNameMatch ? newNameMatch[1] : `${t.name} `;
-            const newName = `${newNamePrefix}${currBairroMax}`.trim();
-
-            const splitT1 = { ...t, enderecos: t1Enderecos };
-            const splitT2 = { ...t, id: uuidv4(), name: newName, enderecos: t2Enderecos };
-            
-            newTerritorios.push(splitT1, splitT2);
-          } else {
-            newTerritorios.push(t);
-          }
-        });
-        return { ...bairro, territorios: newTerritorios };
-      });
-      return { ...prev, bairros: newBairros };
-    });
-  };
-
-  const [importState, setImportState] = useState<ImportState>({
-    isProcessing: false,
-    progress: 0,
-    status: 'idle'
-  });
-
   useEffect(() => {
     if (!user) return;
-    
-    // Initial fetch from Firestore
-    const userRef = doc(firestoreDb, 'users', user.uid);
-    const unsubscribe = onSnapshot(userRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.database) {
-          try {
-            const parsed = JSON.parse(data.database);
-            const cleaned = cleanExpiredStatuses(parsed);
-            setDb(cleaned);
-          } catch(err) {
-            console.error('Failed to parse remote DB', err);
-          }
-        }
-      }
-      setIsInitialLoad(false);
-    }, (error) => {
-      const errInfo = {
-        error: error.message,
-        operationType: 'get',
-        path: `users/${user.uid}`,
-        authInfo: { userId: user.uid }
-      };
-      console.error('Firestore Error: ', JSON.stringify(errInfo));
-      setIsInitialLoad(false);
-    });
-
-    return () => unsubscribe();
+    fetchDatabase();
   }, [user]);
 
-  // Sync back to Firestore on any change
-  useEffect(() => {
-    // We only write to firestore if it's not the initial load to prevent overwriting cloud with potentially empty initial state
-    if (!user || isInitialLoad) return;
+  const fetchDatabase = async () => {
+    // Obtenemos los datos de Supabase
+    const [{ data: bairrosData }, { data: territoriosData }, { data: enderecosData }] = await Promise.all([
+      supabase.from('bairros').select('*'),
+      supabase.from('territorios').select('*'),
+      supabase.from('enderecos').select('*')
+    ]);
 
-    // Use debounce to prevent too many writes when typing
-    const timer = setTimeout(async () => {
-      try {
-        const userRef = doc(firestoreDb, 'users', user.uid);
-        await setDoc(userRef, {
-          uid: user.uid,
-          database: JSON.stringify(dbRef.current)
-        }, { merge: true });
-        
-        // Optionally update the local fallback
-        localStorage.setItem('territory_db', JSON.stringify(dbRef.current));
-      } catch (error) {
-        const errInfo = {
-          error: error instanceof Error ? error.message : String(error),
-          operationType: 'write',
-          path: `users/${user.uid}`,
-          authInfo: { userId: user.uid }
-        };
-        console.error('Firestore Error: ', JSON.stringify(errInfo));
-      }
-    }, 1000);
+    // Reconstruimos la estructura anidada para compatibilidad con el frontend actual
+    const bairros = (bairrosData || []).map(b => ({
+      id: b.id,
+      name: b.name,
+      territorios: (territoriosData || []).filter(t => t.bairro_id === b.id).map(t => ({
+        id: t.id,
+        bairroId: t.bairro_id,
+        name: t.name,
+        lastAssignedDate: t.last_assigned_date,
+        enderecos: (enderecosData || []).filter(e => e.territorio_id === t.id).map(e => ({
+          id: e.id,
+          street: e.street,
+          number: e.number,
+          observations: e.observations || undefined,
+          status: e.status || undefined,
+          statusComment: e.status_comment || undefined,
+          statusDate: e.status_date || undefined
+        }))
+      }))
+    }));
 
-    return () => clearTimeout(timer);
-  }, [db, user, isInitialLoad]);
+    setDb({ bairros, chats: [] });
+  };
 
   const addBairro = (name: string) => {
-    pushHistory(`Adicionado bairro: ${name}`);
-    const newBairro: Bairro = { id: uuidv4(), name, territorios: [] };
+    const id = uuidv4();
+    const newBairro: Bairro = { id, name, territorios: [] };
     setDb(prev => ({ ...prev, bairros: [...prev.bairros, newBairro] }));
+    supabase.from('bairros').insert({ id, name }).then();
     return newBairro;
   };
 
   const updateBairro = (id: string, name: string) => {
-    pushHistory(`Atualizado bairro: ${name}`);
-    setDb(prev => ({
-      ...prev,
-      bairros: prev.bairros.map(b => b.id === id ? { ...b, name } : b)
-    }));
+    setDb(prev => ({ ...prev, bairros: prev.bairros.map(b => b.id === id ? { ...b, name } : b) }));
+    supabase.from('bairros').update({ name }).eq('id', id).then();
   };
 
   const removeBairro = (id: string) => {
-    pushHistory(`Bairro removido`);
-    setDb(prev => ({
-      ...prev,
-      bairros: prev.bairros.filter(b => b.id !== id)
-    }));
+    setDb(prev => ({ ...prev, bairros: prev.bairros.filter(b => b.id !== id) }));
+    supabase.from('bairros').delete().eq('id', id).then();
   };
 
   const addTerritorio = (bairroId: string, name: string) => {
-    const bairroExists = dbRef.current.bairros.some(b => b.id === bairroId);
-    if (!bairroExists) {
-      console.error(`Bairro com ID ${bairroId} não encontrado.`);
-      return null;
-    }
-    pushHistory(`Adicionado território: ${name}`);
-    const newTerritorio: Territorio = { id: uuidv4(), bairroId, name, enderecos: [] };
+    const id = uuidv4();
+    const newTerritorio: Territorio = { id, bairroId, name, enderecos: [] };
     setDb(prev => ({
       ...prev,
-      bairros: prev.bairros.map(b => 
-        b.id === bairroId 
-          ? { ...b, territorios: [...b.territorios, newTerritorio] } 
-          : b
-      )
+      bairros: prev.bairros.map(b => b.id === bairroId ? { ...b, territorios: [...b.territorios, newTerritorio] } : b)
     }));
+    supabase.from('territorios').insert({ id, bairro_id: bairroId, name }).then();
     return newTerritorio;
   };
 
   const updateTerritorio = (id: string, name: string, lastAssignedDate?: string) => {
-    pushHistory(`Atualizado território: ${name || id}`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.map(t => 
-          t.id === id ? { ...t, name: name || t.name, lastAssignedDate: lastAssignedDate !== undefined ? lastAssignedDate : t.lastAssignedDate } : t
-        )
+        ...b, territorios: b.territorios.map(t => t.id === id ? { ...t, name: name || t.name, lastAssignedDate: lastAssignedDate !== undefined ? lastAssignedDate : t.lastAssignedDate } : t)
       }))
     }));
+    
+    const payload: any = {};
+    if (name) payload.name = name;
+    if (lastAssignedDate !== undefined) payload.last_assigned_date = lastAssignedDate || null;
+    supabase.from('territorios').update(payload).eq('id', id).then();
   };
 
   const removeTerritorio = (id: string) => {
-    pushHistory(`Território removido`);
     setDb(prev => ({
       ...prev,
-      bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.filter(t => t.id !== id)
-      }))
+      bairros: prev.bairros.map(b => ({ ...b, territorios: b.territorios.filter(t => t.id !== id) }))
     }));
+    supabase.from('territorios').delete().eq('id', id).then();
   };
 
   const addEndereco = (territorioId: string, street: string, number: string, observations?: string, status?: string, statusComment?: string, statusDate?: string) => {
-    let territorioExists = false;
-    for (const bairro of dbRef.current.bairros) {
-      if (bairro.territorios.some(t => t.id === territorioId)) {
-        territorioExists = true;
-        break;
-      }
-    }
-    if (!territorioExists) {
-      console.error(`Território com ID ${territorioId} não encontrado.`);
-      return null;
-    }
-    pushHistory(`Adicionado endereço: ${street}, ${number}`);
-    const newEndereco: Endereco = { id: uuidv4(), street, number, observations, status, statusComment, statusDate };
+    const id = uuidv4();
+    const newEndereco: Endereco = { id, street, number, observations, status, statusComment, statusDate };
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.map(t => 
-          t.id === territorioId 
-            ? { ...t, enderecos: [...t.enderecos, newEndereco] } 
-            : t
-        )
+        ...b, territorios: b.territorios.map(t => t.id === territorioId ? { ...t, enderecos: [...t.enderecos, newEndereco] } : t)
       }))
     }));
+    
+    supabase.from('enderecos').insert({
+      id, 
+      territorio_id: territorioId, 
+      street, 
+      number, 
+      observations: observations || null, 
+      status: status || null, 
+      status_comment: statusComment || null, 
+      status_date: statusDate || null
+    }).then();
+    
     return newEndereco;
   };
 
   const updateEndereco = (id: string, street: string, number: string, observations?: string, status?: string, statusComment?: string, statusDate?: string) => {
-    pushHistory(`Atualizado endereço: ${street}, ${number}`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.map(t => ({
-          ...t,
-          enderecos: t.enderecos.map(e => 
-            e.id === id ? { ...e, street, number, observations, status, statusComment, statusDate } : e
-          )
+        ...b, territorios: b.territorios.map(t => ({
+          ...t, enderecos: t.enderecos.map(e => e.id === id ? { ...e, street, number, observations, status, statusComment, statusDate } : e)
         }))
       }))
     }));
+
+    supabase.from('enderecos').update({
+      street, 
+      number, 
+      observations: observations || null, 
+      status: status || null, 
+      status_comment: statusComment || null, 
+      status_date: statusDate || null
+    }).eq('id', id).then();
   };
 
   const removeEndereco = (id: string) => {
-    pushHistory(`Endereço removido`);
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.map(t => ({
-          ...t,
-          enderecos: t.enderecos.filter(e => e.id !== id)
-        }))
+        ...b, territorios: b.territorios.map(t => ({ ...t, enderecos: t.enderecos.filter(e => e.id !== id) }))
       }))
     }));
+    supabase.from('enderecos').delete().eq('id', id).then();
   };
 
   const resetTerritorioStatuses = (territorioId: string) => {
     setDb(prev => ({
       ...prev,
       bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.map(t => 
-          t.id === territorioId 
-            ? {
-                ...t,
-                enderecos: t.enderecos.map(e => ({
-                  ...e,
-                  status: undefined,
-                  statusComment: undefined,
-                  statusDate: undefined
-                }))
-              }
-            : t
-        )
+        ...b, territorios: b.territorios.map(t => t.id === territorioId ? {
+          ...t, enderecos: t.enderecos.map(e => ({ ...e, status: undefined, statusComment: undefined, statusDate: undefined }))
+        } : t)
       }))
     }));
+    supabase.from('enderecos').update({ status: null, status_comment: null, status_date: null }).eq('territorio_id', territorioId).then();
   };
 
   const markTerritorioAssigned = (id: string) => {
-    setDb(prev => ({
-      ...prev,
-      bairros: prev.bairros.map(b => ({
-        ...b,
-        territorios: b.territorios.map(t => 
-          t.id === id ? { ...t, lastAssignedDate: new Date().toISOString() } : t
-        )
-      }))
-    }));
+    const d = new Date().toISOString();
+    updateTerritorio(id, '', d);
   };
 
-  const saveChat = (session: ChatSession) => {
-    setDb(prev => {
-      const chats = prev.chats || [];
-      const existingIndex = chats.findIndex(c => c.id === session.id);
-      if (existingIndex >= 0) {
-        const newChats = [...chats];
-        newChats[existingIndex] = session;
-        return { ...prev, chats: newChats };
-      } else {
-        return { ...prev, chats: [session, ...chats] };
-      }
-    });
-  };
-
-  const deleteChat = (id: string) => {
-    setDb(prev => ({
-      ...prev,
-      chats: (prev.chats || []).filter(c => c.id !== id)
-    }));
-  };
-
-  const exportDb = () => {
-    return JSON.stringify(db, null, 2);
-  };
-
-  const importDb = (json: string) => {
-    try {
-      const parsed = JSON.parse(json);
-      if (parsed && Array.isArray(parsed.bairros)) {
-        setDb(parsed);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const mergeBulkData = (parsedData: any[]) => {
-    setDb(prev => {
-      const newDb = { ...prev };
-      const bairros = [...newDb.bairros];
-
-      parsedData.forEach(inBairro => {
-        let bairro = bairros.find(b => b.name.toLowerCase() === inBairro.bairro.toLowerCase());
-        if (!bairro) {
-          bairro = { id: uuidv4(), name: inBairro.bairro, territorios: [] };
-          bairros.push(bairro);
-        }
-
-        inBairro.territorios.forEach((inTerritorio: any) => {
-          let territorio = bairro.territorios.find(t => t.name.toLowerCase() === inTerritorio.name.toLowerCase());
-          if (!territorio) {
-            territorio = { id: uuidv4(), bairroId: bairro.id, name: inTerritorio.name, enderecos: [] };
-            bairro.territorios.push(territorio);
-          }
-
-          inTerritorio.enderecos.forEach((inEndereco: any) => {
-            // Avoid exact duplicates
-            const exists = territorio.enderecos.find(e => e.street.toLowerCase() === inEndereco.street.toLowerCase() && e.number === inEndereco.number);
-            if (!exists) {
-              territorio.enderecos.push({
-                id: uuidv4(),
-                street: inEndereco.street,
-                number: inEndereco.number,
-                observations: inEndereco.observations || ''
-              });
-            }
-          });
-        });
-      });
-
-      return { ...newDb, bairros };
-    });
-  };
-
-  const updateSettings = (city: string, state: string) => {
-    setDb(prev => ({ ...prev, city, state }));
-  };
-
-  const clearDatabase = () => {
-    setDb(defaultDb);
-    localStorage.removeItem('territory_db');
-  };
-
-  const moveTerritorio = (territorioId: string, overId: string, targetBairroId?: string) => {
-    setDb(prev => {
-      // 1. Solidify alphabetical order into manual order for any bairro involved that isn't already manual
-      const workingBairros = prev.bairros.map(b => {
-        if (!b.manualOrder) {
-          return {
-            ...b,
-            territorios: [...b.territorios].sort((a, b) => 
-              a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-            ),
-            manualOrder: true
-          };
-        }
-        return b;
-      });
-
-      let sourceBairroId = '';
-      let sourceIndex = -1;
-      
-      // Find source
-      workingBairros.forEach(b => {
-        const idx = b.territorios.findIndex(t => t.id === territorioId);
-        if (idx !== -1) {
-          sourceBairroId = b.id;
-          sourceIndex = idx;
-        }
-      });
-
-      if (!sourceBairroId) return prev;
-
-      let destinationBairroId = '';
-      let destinationIndex = -1;
-
-      if (targetBairroId) {
-        destinationBairroId = targetBairroId;
-        destinationIndex = 0; // Drop on header, put at start
-      } else {
-        // Find if overId is a territorio
-        workingBairros.forEach(b => {
-          const idx = b.territorios.findIndex(t => t.id === overId);
-          if (idx !== -1) {
-            destinationBairroId = b.id;
-            destinationIndex = idx;
-          }
-        });
-      }
-
-      if (!destinationBairroId) return prev;
-
-      const newBairros = [...workingBairros];
-      
-      const sourceBairroIndex = newBairros.findIndex(b => b.id === sourceBairroId);
-      const destBairroIndex = newBairros.findIndex(b => b.id === destinationBairroId);
-      
-      const sourceBairro = { ...newBairros[sourceBairroIndex], territorios: [...newBairros[sourceBairroIndex].territorios] };
-      const [movedTerritorio] = sourceBairro.territorios.splice(sourceIndex, 1);
-      movedTerritorio.bairroId = destinationBairroId;
-
-      if (sourceBairroIndex === destBairroIndex) {
-        sourceBairro.territorios.splice(destinationIndex, 0, movedTerritorio);
-        newBairros[sourceBairroIndex] = sourceBairro;
-      } else {
-        const destBairro = { ...newBairros[destBairroIndex], territorios: [...newBairros[destBairroIndex].territorios] };
-        destBairro.territorios.splice(destinationIndex, 0, movedTerritorio);
-        newBairros[sourceBairroIndex] = sourceBairro;
-        newBairros[destBairroIndex] = destBairro;
-      }
-
-      return { ...prev, bairros: newBairros };
-    });
-  };
-
-  const startBulkImport = async (text: string) => {
-    if (!text.trim()) return;
-    setImportState({ isProcessing: true, progress: 0, status: 'processing' });
-
-    const lines = text.split('\n');
-    const chunks: string[] = [];
-    let currentChunk = '';
-
-    for (const line of lines) {
-      currentChunk += line + '\n';
-      if (currentChunk.length > 2000) {
-        chunks.push(currentChunk);
-        currentChunk = '';
-      }
-    }
-    if (currentChunk.trim()) {
-      chunks.push(currentChunk);
-    }
-
-    let processed = 0;
-    let hasErrors = false;
-
-    for (const chunk of chunks) {
-      try {
-        const parsedData = await processBulkImport(chunk, db.city, db.state);
-        if (parsedData && Array.isArray(parsedData)) {
-          mergeBulkData(parsedData);
-        }
-      } catch (error) {
-        console.error('Error processing chunk:', error);
-        hasErrors = true;
-      }
-      processed++;
-      setImportState(prev => ({ ...prev, progress: Math.round((processed / chunks.length) * 100) }));
-    }
-
-    setImportState({
-      isProcessing: false,
-      progress: 100,
-      status: hasErrors && processed === 1 ? 'error' : 'success'
-    });
-
-    setTimeout(() => {
-      setImportState(prev => prev.status === 'success' || prev.status === 'error' ? { ...prev, status: 'idle' } : prev);
-    }, 5000);
-  };
-
+  // Implementaciones stub para funciones que ya no usamos con la nueva BD
+  const saveChat = () => {};
+  const deleteChat = () => {};
+  const exportDb = () => JSON.stringify(dbRef.current);
+  const importDb = (json: string) => false;
+  const mergeBulkData = (data: any[]) => {};
+  const updateSettings = () => {};
+  const clearDatabase = () => {};
+  const moveTerritorio = () => {};
+  const startBulkImport = async () => {};
   const getDb = () => dbRef.current;
+  const splitLargeTerritories = () => {};
 
   return (
     <DatabaseContext.Provider value={{
-      db, setDb, getDb,
-      addBairro, updateBairro, removeBairro,
-      addTerritorio, updateTerritorio, removeTerritorio,
-      addEndereco, updateEndereco, removeEndereco,
-      resetTerritorioStatuses,
-      markTerritorioAssigned,
-      saveChat, deleteChat,
-      exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio,
-      importState, startBulkImport, history, undo, splitLargeTerritories
+      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories
     }}>
       {children}
     </DatabaseContext.Provider>
@@ -613,8 +254,6 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 export const useDatabase = () => {
   const context = useContext(DatabaseContext);
-  if (context === undefined) {
-    throw new Error('useDatabase must be used within a DatabaseProvider');
-  }
+  if (context === undefined) throw new Error('useDatabase must be used within a DatabaseProvider');
   return context;
 };

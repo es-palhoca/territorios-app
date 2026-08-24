@@ -25,8 +25,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../lib/utils';
-import { db as firestoreDb } from '../firebase';
-import { doc, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -323,7 +321,7 @@ export const ManualEdit: React.FC = () => {
       const origin = window.location.origin;
       const shareRef = doc(firestoreDb, 'shares', shareId);
       
-      const currentAuth = (await import('firebase/auth')).getAuth();
+      
       if (!currentAuth.currentUser) {
         alert("Erro: Você precisa estar logado para gerar o link do território.");
         return;
