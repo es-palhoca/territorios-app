@@ -215,6 +215,7 @@ export default function MisAsignaciones() {
           </div>
           <h3 className="text-lg font-bold text-text-main mb-2">¡Todo al día!</h3>
           <p className="text-text-dim max-w-sm">No tienes territorios asignados en este momento. Pide uno nuevo a tu conductor cuando estés listo para salir a predicar.</p>
+          <div className="mt-4 text-xs text-text-dim">Debug: Asignaciones encontradas = {asignaciones.length}, Territorios en BD local = {db.bairros.reduce((acc, b) => acc + b.territorios.length, 0)}</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
