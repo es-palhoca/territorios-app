@@ -25,7 +25,7 @@ interface DetalleTerritorioProps {
 }
 
 export default function DetalleTerritorio({ territorioId, onClose, isManager, asignacionId, onReturn }: DetalleTerritorioProps) {
-  const { db, updateEndereco, addEndereco, removeEndereco } = useDatabase();
+  const { db, updateEndereco, addEndereco, removeEndereco, saveGPS } = useDatabase();
   const { user } = useAuth();
   
   const [visitas, setVisitas] = useState<Record<string, Visita[]>>({});
@@ -150,6 +150,32 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
     setShowAddModal(false);
   };
 
+  const [capturingGpsId, setCapturingGpsId] = useState<string | null>(null);
+
+  const captureGPS = (id: string) => {
+    setCapturingGpsId(id);
+    if (!navigator.geolocation) {
+      alert("Tu navegador no soporta captura de GPS.");
+      setCapturingGpsId(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        saveGPS(id, latitude, longitude);
+        setCapturingGpsId(null);
+        alert("¡Ubicación capturada con éxito! Enviada a revisión.");
+      },
+      (error) => {
+        console.error(error);
+        alert("Error al obtener la ubicación: " + error.message);
+        setCapturingGpsId(null);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
   const openEditModal = (end: Endereco) => {
     setEditId(end.id);
     setEditStreet(end.street);
@@ -266,6 +292,27 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
                       {end.observations && (
                         <p className="text-sm text-text-dim mt-1 line-clamp-2">{end.observations}</p>
                       )}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                          {!end.lat && (
+                            <button 
+                              onClick={() => captureGPS(end.id)} 
+                              disabled={capturingGpsId === end.id}
+                              className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded border border-primary/20 flex items-center gap-1 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                            >
+                              <MapPin size={12} /> {capturingGpsId === end.id ? 'Capturando...' : 'Capturar GPS'}
+                            </button>
+                          )}
+                          {end.gps_status === 'PENDING' && (
+                            <span className="text-[10px] bg-warning/10 text-warning px-2 py-1 rounded border border-warning/20 flex items-center gap-1">
+                              <MapPin size={12} /> GPS en revisión
+                            </span>
+                          )}
+                          {end.gps_status === 'VERIFIED' && (
+                            <span className="text-[10px] bg-whatsapp/10 text-whatsapp px-2 py-1 rounded border border-whatsapp/20 flex items-center gap-1">
+                              <MapPin size={12} /> GPS Aprobado
+                            </span>
+                          )}
+                        </div>
                     </div>
                   </div>
 

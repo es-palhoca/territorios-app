@@ -6,6 +6,9 @@ export interface Endereco {
   status?: string; // Optional field for backward compatibility
   statusComment?: string; // Temporary comment from the publisher
   statusDate?: string; // ISO Date string of when the status/comment was updated
+  lat?: number;
+  lng?: number;
+  gps_status?: 'PENDING' | 'VERIFIED';
 }
 
 export interface Territorio {

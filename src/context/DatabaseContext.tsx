@@ -38,6 +38,8 @@ interface DatabaseContextType {
   history: HistoryEntry[];
   undo: (id: string) => void;
   splitLargeTerritories: () => void;
+  saveGPS: (id: string, lat: number, lng: number) => void;
+  approveGPS: (id: string) => void;
 }
 
 const defaultDb: Database = { bairros: [], chats: [] };
@@ -100,7 +102,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           observations: e.observations || undefined,
           status: e.status || undefined,
           statusComment: e.status_comment || undefined,
-          statusDate: e.status_date || undefined
+          statusDate: e.status_date || undefined,
+          lat: e.lat || undefined,
+          lng: e.lng || undefined,
+          gps_status: e.gps_status || undefined
         }))
       }))
     }));
@@ -203,6 +208,30 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }).eq('id', id).then();
   };
 
+  const saveGPS = (id: string, lat: number, lng: number) => {
+    setDb(prev => ({
+      ...prev,
+      bairros: prev.bairros.map(b => ({
+        ...b, territorios: b.territorios.map(t => ({
+          ...t, enderecos: t.enderecos.map(e => e.id === id ? { ...e, lat, lng, gps_status: 'PENDING' } : e)
+        }))
+      }))
+    }));
+    supabase.from('enderecos').update({ lat, lng, gps_status: 'PENDING' }).eq('id', id).then();
+  };
+
+  const approveGPS = (id: string) => {
+    setDb(prev => ({
+      ...prev,
+      bairros: prev.bairros.map(b => ({
+        ...b, territorios: b.territorios.map(t => ({
+          ...t, enderecos: t.enderecos.map(e => e.id === id ? { ...e, gps_status: 'VERIFIED' } : e)
+        }))
+      }))
+    }));
+    supabase.from('enderecos').update({ gps_status: 'VERIFIED' }).eq('id', id).then();
+  };
+
   const removeEndereco = (id: string) => {
     setDb(prev => ({
       ...prev,
@@ -245,7 +274,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <DatabaseContext.Provider value={{
-      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories
+      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS
     }}>
       {children}
     </DatabaseContext.Provider>

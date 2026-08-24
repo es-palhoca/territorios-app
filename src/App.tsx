@@ -11,10 +11,11 @@ import ForcePasswordChange from './components/ForcePasswordChange';
 import MisAsignaciones from './components/MisAsignaciones';
 import PanelGestion from './components/PanelGestion';
 import Configuracion from './components/Configuracion';
-import { Map, LogOut, Loader2, CheckCircle2, AlertCircle, Home, ClipboardList, Settings as SettingsIcon } from 'lucide-react';
+import BandejaRevision from './components/BandejaRevision';
+import { Map, LogOut, Loader2, CheckCircle2, AlertCircle, Home, ClipboardList, Settings as SettingsIcon, Inbox } from 'lucide-react';
 import { cn } from './lib/utils';
 
-type Tab = 'mis_asignaciones' | 'gestion' | 'configuracion';
+type Tab = 'mis_asignaciones' | 'gestion' | 'configuracion' | 'revision';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('mis_asignaciones');
@@ -109,6 +110,18 @@ function AppContent() {
           <nav className="mb-8">
             <div className="text-[11px] uppercase tracking-widest text-text-dim mb-3">Sistema</div>
             <button
+              onClick={() => setActiveTab('revision')}
+              className={cn(
+                "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
+                activeTab === 'revision' 
+                  ? "bg-surface-accent text-text-main" 
+                  : "text-text-dim hover:bg-surface-accent hover:text-text-main"
+              )}
+            >
+              <Inbox size={18} />
+              Bandeja de Revisión
+            </button>
+            <button
               onClick={() => setActiveTab('configuracion')}
               className={cn(
                 "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
@@ -140,6 +153,7 @@ function AppContent() {
           {activeTab === 'mis_asignaciones' && <MisAsignaciones />}
           {activeTab === 'gestion' && canManage && <PanelGestion />}
           {activeTab === 'configuracion' && isAdmin && <Configuracion />}
+          {activeTab === 'revision' && isAdmin && <BandejaRevision />}
         </div>
       </main>
 
@@ -153,7 +167,7 @@ function AppContent() {
           )}
         >
           <Home size={20} />
-          <span className="text-[10px] font-medium">Asignaciones</span>
+          <span className="text-[10px] font-medium">Asig.</span>
         </button>
         
         {canManage && (
@@ -166,6 +180,19 @@ function AppContent() {
           >
             <ClipboardList size={20} />
             <span className="text-[10px] font-medium">Gestión</span>
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('revision')}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
+              activeTab === 'revision' ? "text-primary" : "text-text-dim hover:text-text-main"
+            )}
+          >
+            <Inbox size={20} />
+            <span className="text-[10px] font-medium">Revisión</span>
           </button>
         )}
 
