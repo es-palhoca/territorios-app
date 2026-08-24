@@ -32,6 +32,14 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
 
+  // Confirmación de Estado
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    enderecoId: string;
+    currentEndereco: Endereco;
+    newStatus: string;
+  } | null>(null);
+  const [statusNote, setStatusNote] = useState('');
+
   // Agregar Dirección
   const [showAddModal, setShowAddModal] = useState(false);
   const [newStreet, setNewStreet] = useState('');
@@ -80,7 +88,18 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
     }
   };
 
-  const handleUpdateStatus = async (enderecoId: string, currentEndereco: Endereco, newStatus: string | undefined) => {
+  const requestUpdateStatus = (enderecoId: string, currentEndereco: Endereco, newStatus: string | undefined) => {
+    if (newStatus === undefined) {
+      // Es un "Deshacer", se ejecuta directamente sin pedir nota para limpiar el estado actual
+      executeStatusChange(enderecoId, currentEndereco, undefined);
+    } else {
+      // Abre el modal para confirmar e ingresar nota
+      setPendingStatusChange({ enderecoId, currentEndereco, newStatus });
+      setStatusNote('');
+    }
+  };
+
+  const executeStatusChange = async (enderecoId: string, currentEndereco: Endereco, newStatus: string | undefined, note?: string) => {
     const statusDate = newStatus ? new Date().toISOString() : undefined;
     
     updateEndereco(
@@ -98,10 +117,12 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
         endereco_id: enderecoId,
         perfil_id: user.id,
         status: newStatus,
-        visited_at: statusDate
+        visited_at: statusDate,
+        notes: note || null
       });
       fetchVisitas(territorio.enderecos.map((e: any) => e.id));
     }
+    setPendingStatusChange(null);
   };
 
   const handleSendNote = async (enderecoId: string) => {
@@ -197,17 +218,17 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
             const historial = visitas[end.id] || [];
 
             return (
-            <div key={end.id} className={`bg-surface border ${end.status === 'HECHO' ? 'border-whatsapp/30 bg-whatsapp/5' : end.status === 'NO_EN_CASA' ? 'border-orange-500/30' : end.status === 'NO_VISITAR' ? 'border-error/30' : isNoExtranjero ? 'border-border/30 opacity-60 bg-bg' : 'border-border'} rounded-xl p-4 shadow-sm transition-all`}>
+            <div key={end.id} className={`bg-surface border ${end.status === 'HECHO' ? 'border-whatsapp/30 bg-whatsapp/5' : end.status === 'NO_EN_CASA' ? 'border-orange-500/30' : end.status === 'NO_VISITAR' || end.status === 'NO_EXTRANJERO' ? 'border-error/30' : 'border-border'} rounded-xl p-4 shadow-sm transition-all`}>
               
               {isNoExtranjero ? (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-text-dim">
                     <Globe size={16} />
                     <span className="line-through">{end.street} {end.number}</span>
-                    <span className="text-xs bg-surface-accent px-2 py-0.5 rounded-full ml-2">Descartado: No es extranjero</span>
+                    <span className="text-xs bg-error/10 text-error px-2 py-0.5 rounded-full ml-2">Descartado: No es extranjero</span>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleUpdateStatus(end.id, end, undefined)} className="text-xs text-primary hover:underline">
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => requestUpdateStatus(end.id, end, undefined)} className="text-xs text-primary hover:underline">
                       Deshacer
                     </button>
                     {isManager && (
@@ -251,84 +272,84 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
                   {/* Botones de Estado */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                     <button 
-                      onClick={() => handleUpdateStatus(end.id, end, end.status === 'HECHO' ? undefined : 'HECHO')}
+                      onClick={() => requestUpdateStatus(end.id, end, end.status === 'HECHO' ? undefined : 'HECHO')}
                       className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'HECHO' ? 'bg-whatsapp text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-whatsapp/10 hover:text-whatsapp'}`}
                     >
                       <Check size={14} /> Hecho
                     </button>
                     <button 
-                      onClick={() => handleUpdateStatus(end.id, end, end.status === 'NO_EN_CASA' ? undefined : 'NO_EN_CASA')}
+                      onClick={() => requestUpdateStatus(end.id, end, end.status === 'NO_EN_CASA' ? undefined : 'NO_EN_CASA')}
                       className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'NO_EN_CASA' ? 'bg-orange-500 text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-orange-500/10 hover:text-orange-500'}`}
                     >
                       <Clock size={14} /> No en casa
                     </button>
                     <button 
-                      onClick={() => handleUpdateStatus(end.id, end, end.status === 'NO_VISITAR' ? undefined : 'NO_VISITAR')}
+                      onClick={() => requestUpdateStatus(end.id, end, end.status === 'NO_VISITAR' ? undefined : 'NO_VISITAR')}
                       className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${end.status === 'NO_VISITAR' ? 'bg-error text-white shadow-md' : 'bg-surface-accent text-text-main hover:bg-error/10 hover:text-error'}`}
                     >
                       <CalendarX2 size={14} /> No visitar
                     </button>
                     <button 
-                      onClick={() => handleUpdateStatus(end.id, end, 'NO_EXTRANJERO')}
-                      className="py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all bg-surface-accent text-text-dim hover:bg-bg hover:text-text-main"
+                      onClick={() => requestUpdateStatus(end.id, end, 'NO_EXTRANJERO')}
+                      className="py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all bg-surface-accent text-error hover:bg-error hover:text-white"
                     >
                       <Globe size={14} /> No es extranjero
                     </button>
                   </div>
-
-                  {/* Sección de Notas e Historial */}
-                  <div className="mt-4 pt-3 border-t border-border/50">
-                    <button 
-                      onClick={() => setExpandedNotes(prev => ({ ...prev, [end.id]: !prev[end.id] }))}
-                      className="flex items-center gap-2 text-xs font-medium text-text-dim hover:text-primary transition-colors"
-                    >
-                      <MessageSquare size={14} />
-                      {historial.length > 0 ? `Ver historial (${historial.length}) y notas` : 'Añadir nota al historial'}
-                    </button>
-
-                    {expandedNotes[end.id] && (
-                      <div className="mt-3 space-y-3">
-                        {/* Historial */}
-                        <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                          {historial.map(v => (
-                            <div key={v.id} className="bg-bg rounded-lg p-2.5 text-xs border border-border/50">
-                              <div className="flex justify-between items-start mb-1">
-                                <span className="font-bold text-text-main">{v.perfiles?.full_name || 'Desconocido'}</span>
-                                <span className="text-[10px] text-text-dim">{format(new Date(v.visited_at), 'dd/MM/yyyy HH:mm')}</span>
-                              </div>
-                              {v.status && (
-                                <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold mb-1 ${v.status === 'HECHO' ? 'bg-whatsapp/20 text-whatsapp' : v.status === 'NO_EN_CASA' ? 'bg-orange-500/20 text-orange-500' : 'bg-error/20 text-error'}`}>
-                                  {v.status}
-                                </span>
-                              )}
-                              {v.notes && <p className="text-text-dim">{v.notes}</p>}
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {/* Caja de texto para nueva nota */}
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            placeholder="Escribe una nota..." 
-                            className="flex-1 bg-bg border border-border rounded-lg px-3 py-1.5 text-xs text-text-main focus:border-primary focus:outline-none"
-                            value={noteInputs[end.id] || ''}
-                            onChange={(e) => setNoteInputs(prev => ({ ...prev, [end.id]: e.target.value }))}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSendNote(end.id)}
-                          />
-                          <button 
-                            onClick={() => handleSendNote(end.id)}
-                            disabled={!noteInputs[end.id]?.trim()}
-                            className="bg-primary hover:bg-primary-hover disabled:opacity-50 text-white p-1.5 rounded-lg transition-colors flex items-center justify-center"
-                          >
-                            <Send size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
+
+              {/* Sección de Notas e Historial (SIEMPRE VISIBLE) */}
+              <div className="mt-4 pt-3 border-t border-border/50">
+                <button 
+                  onClick={() => setExpandedNotes(prev => ({ ...prev, [end.id]: !prev[end.id] }))}
+                  className="flex items-center gap-2 text-xs font-medium text-text-dim hover:text-primary transition-colors"
+                >
+                  <MessageSquare size={14} />
+                  {historial.length > 0 ? `Ver historial (${historial.length}) y notas` : 'Añadir nota al historial'}
+                </button>
+
+                {expandedNotes[end.id] && (
+                  <div className="mt-3 space-y-3">
+                    {/* Historial */}
+                    <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                      {historial.map(v => (
+                        <div key={v.id} className="bg-bg rounded-lg p-2.5 text-xs border border-border/50">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-bold text-text-main">{v.perfiles?.full_name || 'Desconocido'}</span>
+                            <span className="text-[10px] text-text-dim">{format(new Date(v.visited_at), 'dd/MM/yyyy HH:mm')}</span>
+                          </div>
+                          {v.status && (
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold mb-1 ${v.status === 'HECHO' ? 'bg-whatsapp/20 text-whatsapp' : v.status === 'NO_EN_CASA' ? 'bg-orange-500/20 text-orange-500' : 'bg-error/20 text-error'}`}>
+                              {v.status === 'NO_EXTRANJERO' ? 'NO ES EXTRANJERO' : v.status}
+                            </span>
+                          )}
+                          {v.notes && <p className="text-text-dim">{v.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Caja de texto para nueva nota */}
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Escribe una nota..." 
+                        className="flex-1 bg-bg border border-border rounded-lg px-3 py-1.5 text-xs text-text-main focus:border-primary focus:outline-none"
+                        value={noteInputs[end.id] || ''}
+                        onChange={(e) => setNoteInputs(prev => ({ ...prev, [end.id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendNote(end.id)}
+                      />
+                      <button 
+                        onClick={() => handleSendNote(end.id)}
+                        disabled={!noteInputs[end.id]?.trim()}
+                        className="bg-primary hover:bg-primary-hover disabled:opacity-50 text-white p-1.5 rounded-lg transition-colors flex items-center justify-center"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )})
         )}
@@ -352,6 +373,52 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
           </div>
         )}
       </div>
+
+      {/* Modal para Confirmar Cambio de Estado */}
+      {pendingStatusChange && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-lg">Confirmar Acción</h3>
+              <button onClick={() => setPendingStatusChange(null)} className="text-text-dim hover:text-text-main"><X size={20}/></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-text-main">
+                Estás a punto de marcar <strong>{pendingStatusChange.currentEndereco.street} {pendingStatusChange.currentEndereco.number}</strong> como: 
+                <span className={`ml-1 font-bold ${pendingStatusChange.newStatus === 'HECHO' ? 'text-whatsapp' : pendingStatusChange.newStatus === 'NO_EN_CASA' ? 'text-orange-500' : 'text-error'}`}>
+                  {pendingStatusChange.newStatus === 'NO_EXTRANJERO' ? 'NO ES EXTRANJERO' : pendingStatusChange.newStatus}
+                </span>
+              </p>
+              
+              <div>
+                <label className="block text-xs font-medium text-text-dim mb-1">¿Deseas agregar una nota? (Opcional)</label>
+                <textarea 
+                  autoFocus
+                  value={statusNote}
+                  onChange={(e) => setStatusNote(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none resize-none"
+                  placeholder={pendingStatusChange.newStatus === 'NO_EXTRANJERO' ? "Ej. Se mudaron hace 2 meses" : "Ej. Volver más tarde..."}
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button 
+                  onClick={() => setPendingStatusChange(null)}
+                  className="flex-1 bg-surface-accent hover:bg-bg border border-border text-text-main font-medium py-2 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => executeStatusChange(pendingStatusChange.enderecoId, pendingStatusChange.currentEndereco, pendingStatusChange.newStatus, statusNote)}
+                  className="flex-1 bg-primary hover:bg-primary-hover text-white font-medium py-2 rounded-lg transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal para Agregar Dirección */}
       {showAddModal && (
