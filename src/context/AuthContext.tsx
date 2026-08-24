@@ -7,6 +7,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   role: 'PUBLICADOR' | 'CONDUCTOR' | 'ADMIN';
+  debe_cambiar_clave: boolean;
 }
 
 interface AuthContextType {
@@ -14,6 +15,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   logOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,8 +70,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, logOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, logOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

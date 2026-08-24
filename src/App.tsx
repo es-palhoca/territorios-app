@@ -3,26 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DatabaseProvider, useDatabase } from './context/DatabaseContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Chat } from './components/Chat';
-import { ManualEdit } from './components/ManualEdit';
-import { Settings } from './components/Settings';
 import { Login } from './components/Login';
-import { Dashboard } from './components/Dashboard';
-import { FeedbackView } from './components/FeedbackView';
-import { PublicBoardView } from './components/PublicBoardView';
-import { CensoView } from './components/CensoView';
-import { MessageSquare, Database as DatabaseIcon, Settings as SettingsIcon, Map, Loader2, CheckCircle2, AlertCircle, LogOut, Home } from 'lucide-react';
+import ForcePasswordChange from './components/ForcePasswordChange';
+import MisAsignaciones from './components/MisAsignaciones';
+import PanelGestion from './components/PanelGestion';
+import Configuracion from './components/Configuracion';
+import { Map, LogOut, Loader2, CheckCircle2, AlertCircle, Home, ClipboardList, Settings as SettingsIcon } from 'lucide-react';
 import { cn } from './lib/utils';
 
-type Tab = 'dashboard' | 'chat' | 'database' | 'settings';
+type Tab = 'mis_asignaciones' | 'gestion' | 'configuracion';
 
 function AppContent() {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [activeTab, setActiveTab] = useState<Tab>('mis_asignaciones');
   const { importState } = useDatabase();
-  const { user, logOut } = useAuth();
+  const { user, profile, logOut } = useAuth();
+
+  // Si tiene que cambiar la clave, bloqueamos toda la UI principal
+  if (profile?.debe_cambiar_clave) {
+    return <ForcePasswordChange />;
+  }
+
+  const canManage = profile?.role === 'ADMIN' || profile?.role === 'CONDUCTOR';
+  const isAdmin = profile?.role === 'ADMIN';
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-bg font-sans text-text-main relative">
@@ -32,11 +37,11 @@ function AppContent() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-text-main flex items-center">
               {importState.isProcessing ? (
-                <><Loader2 size={16} className="mr-2 animate-spin text-primary" /> Processando IA...</>
+                <><Loader2 size={16} className="mr-2 animate-spin text-primary" /> Procesando...</>
               ) : importState.status === 'success' ? (
-                <><CheckCircle2 size={16} className="mr-2 text-whatsapp" /> Concluído!</>
+                <><CheckCircle2 size={16} className="mr-2 text-whatsapp" /> ¡Completado!</>
               ) : (
-                <><AlertCircle size={16} className="mr-2 text-red-400" /> Falha parcial</>
+                <><AlertCircle size={16} className="mr-2 text-red-400" /> Fallo parcial</>
               )}
             </span>
             <span className="text-xs text-text-dim">{importState.progress}%</span>
@@ -69,152 +74,121 @@ function AppContent() {
         </div>
         
         <nav className="mb-8 flex-1">
-          <div className="text-[11px] uppercase tracking-widest text-text-dim mb-3">Gerenciamento</div>
+          <div className="text-[11px] uppercase tracking-widest text-text-dim mb-3">Principal</div>
           
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => setActiveTab('mis_asignaciones')}
             className={cn(
               "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
-              activeTab === 'dashboard' 
+              activeTab === 'mis_asignaciones' 
                 ? "bg-surface-accent text-text-main" 
                 : "text-text-dim hover:bg-surface-accent hover:text-text-main"
             )}
           >
             <Home size={18} />
-            Início
+            Mis Asignaciones
           </button>
 
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={cn(
-              "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
-              activeTab === 'chat' 
-                ? "bg-surface-accent text-text-main" 
-                : "text-text-dim hover:bg-surface-accent hover:text-text-main"
-            )}
-          >
-            <MessageSquare size={18} />
-            Assistente IA
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('database')}
-            className={cn(
-              "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
-              activeTab === 'database' 
-                ? "bg-surface-accent text-text-main" 
-                : "text-text-dim hover:bg-surface-accent hover:text-text-main"
-            )}
-          >
-            <DatabaseIcon size={18} />
-            Banco de Dados  
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setActiveTab('gestion')}
+              className={cn(
+                "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
+                activeTab === 'gestion' 
+                  ? "bg-surface-accent text-text-main" 
+                  : "text-text-dim hover:bg-surface-accent hover:text-text-main"
+              )}
+            >
+              <ClipboardList size={18} />
+              Gestión de Territorios
+            </button>
+          )}
         </nav>
 
-        <nav className="mb-8">
-          <div className="text-[11px] uppercase tracking-widest text-text-dim mb-3">Sistema</div>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={cn(
-              "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
-              activeTab === 'settings' 
-                ? "bg-surface-accent text-text-main" 
-                : "text-text-dim hover:bg-surface-accent hover:text-text-main"
-            )}
-          >
-            <SettingsIcon size={18} />
-            Configurações
-          </button>
-        </nav>
+        {isAdmin && (
+          <nav className="mb-8">
+            <div className="text-[11px] uppercase tracking-widest text-text-dim mb-3">Sistema</div>
+            <button
+              onClick={() => setActiveTab('configuracion')}
+              className={cn(
+                "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
+                activeTab === 'configuracion' 
+                  ? "bg-surface-accent text-text-main" 
+                  : "text-text-dim hover:bg-surface-accent hover:text-text-main"
+              )}
+            >
+              <SettingsIcon size={18} />
+              Configuraciones
+            </button>
+          </nav>
+        )}
 
         <button onClick={logOut} className="w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm text-error hover:bg-error/10 transition-colors gap-3 mb-6">
           <LogOut size={18} />
-          Sair
+          Cerrar Sesión
         </button>
 
         <div className="mt-auto bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-border">
-          <div className="text-xs text-text-dim mb-2">Conta logada</div>
-          <div className="text-sm font-bold text-secondary truncate" title={user?.email || ''}>{user?.email || 'Nenhuma'}</div>
+          <div className="text-xs text-text-dim mb-2">Cuenta actual ({profile?.role})</div>
+          <div className="text-sm font-bold text-secondary truncate" title={user?.email || ''}>{profile?.full_name || user?.email}</div>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden bg-bg relative">
         <div className="h-full w-full max-w-5xl mx-auto flex flex-col">
-          {activeTab === 'dashboard' && <Dashboard />}
-          {activeTab === 'chat' && <Chat />}
-          {activeTab === 'database' && <ManualEdit />}
-          {activeTab === 'settings' && <Settings />}
+          {activeTab === 'mis_asignaciones' && <MisAsignaciones />}
+          {activeTab === 'gestion' && canManage && <PanelGestion />}
+          {activeTab === 'configuracion' && isAdmin && <Configuracion />}
         </div>
       </main>
 
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden flex bg-surface border-t border-border shrink-0 pb-2">
         <button
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => setActiveTab('mis_asignaciones')}
           className={cn(
             "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
-            activeTab === 'dashboard' ? "text-primary" : "text-text-dim hover:text-text-main"
+            activeTab === 'mis_asignaciones' ? "text-primary" : "text-text-dim hover:text-text-main"
           )}
         >
           <Home size={20} />
-          <span className="text-[10px] font-medium">Início</span>
+          <span className="text-[10px] font-medium">Asignaciones</span>
         </button>
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={cn(
-            "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
-            activeTab === 'chat' ? "text-primary" : "text-text-dim hover:text-text-main"
-          )}
-        >
-          <MessageSquare size={20} />
-          <span className="text-[10px] font-medium">Chat</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('database')}
-          className={cn(
-            "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
-            activeTab === 'database' ? "text-primary" : "text-text-dim hover:text-text-main"
-          )}
-        >
-          <DatabaseIcon size={20} />
-          <span className="text-[10px] font-medium">Dados</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={cn(
-            "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
-            activeTab === 'settings' ? "text-primary" : "text-text-dim hover:text-text-main"
-          )}
-        >
-          <SettingsIcon size={20} />
-          <span className="text-[10px] font-medium">Ajustes</span>
-        </button>
+        
+        {canManage && (
+          <button
+            onClick={() => setActiveTab('gestion')}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
+              activeTab === 'gestion' ? "text-primary" : "text-text-dim hover:text-text-main"
+            )}
+          >
+            <ClipboardList size={20} />
+            <span className="text-[10px] font-medium">Gestión</span>
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('configuracion')}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
+              activeTab === 'configuracion' ? "text-primary" : "text-text-dim hover:text-text-main"
+            )}
+          >
+            <SettingsIcon size={20} />
+            <span className="text-[10px] font-medium">Ajustes</span>
+          </button>
+        )}
       </nav>
     </div>
   );
 }
 
 const AppRouter = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   
-  const searchParams = new URLSearchParams(window.location.search);
-  const shareId = searchParams.get('share');
-  const boardId = searchParams.get('board');
-  const censoId = searchParams.get('censo');
-
-  if (shareId) {
-    return <FeedbackView shareId={shareId} />;
-  }
-
-  if (boardId) {
-    return <PublicBoardView boardId={boardId} />;
-  }
-
-  if (censoId) {
-    return <CensoView userId={censoId} />;
-  }
-
   if (loading) {
     return (
       <div className="flex flex-col md:flex-row h-screen bg-bg relative overflow-hidden">
@@ -236,8 +210,6 @@ const AppRouter = () => {
           <div className="flex flex-col gap-2">
             <div className="h-10 w-full bg-surface-accent rounded-xl"></div>
             <div className="h-10 w-full bg-surface-accent/50 rounded-xl"></div>
-            <div className="h-10 w-full bg-surface-accent/50 rounded-xl"></div>
-            <div className="h-10 w-full bg-surface-accent/50 rounded-xl"></div>
           </div>
         </div>
 
@@ -246,23 +218,16 @@ const AppRouter = () => {
           <div className="h-8 w-48 bg-surface-accent rounded-md mb-6 md:mb-8"></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
             <div className="h-28 sm:h-32 bg-surface-accent rounded-xl sm:rounded-2xl border border-border/50"></div>
-            <div className="h-28 sm:h-32 bg-surface-accent rounded-xl sm:rounded-2xl border border-border/50"></div>
-            <div className="h-28 sm:h-32 bg-surface-accent rounded-xl sm:rounded-2xl border border-border/50"></div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="order-2 lg:order-1 lg:col-span-7 xl:col-span-8 h-64 md:h-[350px] bg-surface border border-border rounded-2xl"></div>
-            <div className="order-1 lg:order-2 lg:col-span-5 xl:col-span-4 h-64 md:h-[350px] bg-surface border border-border rounded-2xl"></div>
           </div>
         </div>
       </div>
     );
   }
 
-  if (!user) {
+  if (!user || !profile) {
     return <Login />;
   }
 
-  // Wrapped in DB provider only when authenticated (to avoid reading offline state incorrectly)
   return (
     <DatabaseProvider>
       <AppContent />
@@ -277,4 +242,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
