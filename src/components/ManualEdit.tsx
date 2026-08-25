@@ -27,6 +27,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../lib/supabase';
 
 type ModalState = 
   | { type: 'none' }
@@ -233,23 +234,8 @@ export const ManualEdit: React.FC = () => {
   const [showMatches, setShowMatches] = useState(false);
 
   React.useEffect(() => {
-    if (!user) return;
-
-    const q = query(collection(firestoreDb, 'feedbacks'), where('ownerUid', '==', user.uid), where('read', '==', false));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(document => ({ ...document.data(), docId: document.id }) as any);
-      data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-      setFeedbacks(data);
-    }, (error) => {
-      const errInfo = {
-        error: error.message,
-        operationType: 'get',
-        path: 'feedbacks',
-        authInfo: { userId: user?.uid }
-      };
-      console.error('Firestore Error: ', JSON.stringify(errInfo));
-    });
-    return () => unsubscribe();
+    // Feedbacks ya no usa Firestore localmente en esta vista
+    setFeedbacks([]);
   }, [user]);
 
   const handleScrollToTerritorio = (bairro: Bairro, territorio: Territorio) => {
@@ -319,35 +305,25 @@ export const ManualEdit: React.FC = () => {
     try {
       const shareId = Math.random().toString(36).substring(2, 10);
       const origin = window.location.origin;
-      const shareRef = doc(firestoreDb, 'shares', shareId);
       
-      
-      if (!currentAuth.currentUser) {
+      if (!user) {
         alert("Erro: Você precisa estar logado para gerar o link do território.");
         return;
       }
 
-      await setDoc(shareRef, {
+      const { error } = await supabase.from('shares').insert({
         id: shareId,
-        ownerUid: currentAuth.currentUser.uid,
-        bairroId: bairro.id,
-        territorioId: territorio.id,
-        bairroName: bairro.name,
-        territorioName: territorio.name,
-        enderecos: JSON.stringify(territorio.enderecos),
-        createdAt: new Date()
-      }).catch(err => {
-        const errInfo = {
-          error: err instanceof Error ? err.message : String(err),
-          operationType: 'write',
-          path: `shares/${shareId}`,
-          authInfo: { userId: currentAuth.currentUser?.uid }
-        };
-        console.error('Firestore Error: ', JSON.stringify(errInfo));
-        throw new Error(JSON.stringify(errInfo));
+        owner_uid: user.id,
+        bairro_id: bairro.id,
+        territorio_id: territorio.id,
+        bairro_name: bairro.name,
+        territorio_name: territorio.name,
+        enderecos: territorio.enderecos
       });
+
+      if (error) throw error;
       
-      const shareUrl = `${origin}/?share=${shareId}`;
+      const shareUrl = `${origin}/share/${shareId}`;
 
       let msg = `📍 ${bairro.name.toUpperCase()} - TERRITÓRIO ${territorio.name.toUpperCase()}\n\n`;
       territorio.enderecos.forEach((end, index) => {
