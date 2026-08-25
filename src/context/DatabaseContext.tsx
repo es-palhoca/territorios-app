@@ -41,6 +41,8 @@ interface DatabaseContextType {
   saveGPS: (id: string, lat: number, lng: number) => void;
   approveGPS: (id: string) => void;
   rejectGPS: (id: string) => void;
+  moveTerritorioToBairro: (territorioId: string, newBairroId: string) => void;
+  moveEnderecoToTerritorio: (enderecoId: string, newTerritorioId: string) => void;
 }
 
 const defaultDb: Database = { bairros: [], chats: [] };
@@ -245,6 +247,70 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     supabase.from('enderecos').update({ lat: null, lng: null, gps_status: null }).eq('id', id).then();
   };
 
+  const moveTerritorioToBairro = (territorioId: string, newBairroId: string) => {
+    let targetTerritorio: any = null;
+    setDb(prev => {
+      // Find the territorio
+      prev.bairros.forEach(b => {
+        const t = b.territorios.find(t => t.id === territorioId);
+        if (t) targetTerritorio = t;
+      });
+      if (!targetTerritorio) return prev;
+
+      return {
+        ...prev,
+        bairros: prev.bairros.map(b => {
+          // Remove from old
+          if (b.territorios.some(t => t.id === territorioId)) {
+            return { ...b, territorios: b.territorios.filter(t => t.id !== territorioId) };
+          }
+          // Add to new
+          if (b.id === newBairroId) {
+            return { ...b, territorios: [...b.territorios, { ...targetTerritorio, bairroId: newBairroId }] };
+          }
+          return b;
+        })
+      };
+    });
+    if (targetTerritorio) {
+      supabase.from('territorios').update({ bairro_id: newBairroId }).eq('id', territorioId).then();
+    }
+  };
+
+  const moveEnderecoToTerritorio = (enderecoId: string, newTerritorioId: string) => {
+    let targetEndereco: any = null;
+    setDb(prev => {
+      prev.bairros.forEach(b => {
+        b.territorios.forEach(t => {
+          const e = t.enderecos.find(e => e.id === enderecoId);
+          if (e) targetEndereco = e;
+        });
+      });
+      if (!targetEndereco) return prev;
+
+      return {
+        ...prev,
+        bairros: prev.bairros.map(b => ({
+          ...b,
+          territorios: b.territorios.map(t => {
+            // Remove from old
+            if (t.enderecos.some(e => e.id === enderecoId)) {
+              return { ...t, enderecos: t.enderecos.filter(e => e.id !== enderecoId) };
+            }
+            // Add to new
+            if (t.id === newTerritorioId) {
+              return { ...t, enderecos: [...t.enderecos, targetEndereco] };
+            }
+            return t;
+          })
+        }))
+      };
+    });
+    if (targetEndereco) {
+      supabase.from('enderecos').update({ territorio_id: newTerritorioId }).eq('id', enderecoId).then();
+    }
+  };
+
   const removeEndereco = (id: string) => {
     setDb(prev => ({
       ...prev,
@@ -287,7 +353,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <DatabaseContext.Provider value={{
-      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS, rejectGPS
+      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS, rejectGPS, moveTerritorioToBairro, moveEnderecoToTerritorio
     }}>
       {children}
     </DatabaseContext.Provider>

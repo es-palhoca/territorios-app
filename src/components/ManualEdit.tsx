@@ -33,11 +33,11 @@ type ModalState =
   | { type: 'add_bairro' }
   | { type: 'edit_bairro', id: string, name: string }
   | { type: 'add_territorio', bairroId: string }
-  | { type: 'edit_territorio', id: string, name: string, lastAssignedDate?: string }
+  | { type: 'edit_territorio', id: string, name: string, lastAssignedDate?: string, bairroId: string }
   | { type: 'add_endereco', territorioId: string }
   | { type: 'smart_add_endereco' }
   | { type: 'preview_territorio', bairro: Bairro, territorio: Territorio }
-  | { type: 'edit_endereco', id: string, street: string, number: string, observations: string, status?: string, statusComment?: string, statusDate?: string }
+  | { type: 'edit_endereco', id: string, street: string, number: string, observations: string, status?: string, statusComment?: string, statusDate?: string, territorioId: string }
   | { type: 'confirm_reset_statuses', id: string, name: string }
   | { type: 'confirm_delete', entityType: 'bairro' | 'territorio' | 'endereco', id: string, name: string };
 
@@ -221,7 +221,7 @@ const BairroHeader: React.FC<BairroHeaderProps> = ({
 
 export const ManualEdit: React.FC = () => {
   const { user } = useAuth();
-  const { db, addBairro, removeBairro, updateBairro, addTerritorio, removeTerritorio, updateTerritorio, addEndereco, removeEndereco, updateEndereco, markTerritorioAssigned, moveTerritorio, resetTerritorioStatuses } = useDatabase();
+  const { db, addBairro, removeBairro, updateBairro, addTerritorio, removeTerritorio, updateTerritorio, addEndereco, removeEndereco, updateEndereco, markTerritorioAssigned, moveTerritorio, resetTerritorioStatuses, moveTerritorioToBairro, moveEnderecoToTerritorio } = useDatabase();
   const [expandedBairros, setExpandedBairros] = useState<Record<string, boolean>>({});
   const [expandedTerritorios, setExpandedTerritorios] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -388,6 +388,9 @@ export const ManualEdit: React.FC = () => {
             isoDate = '';
           }
           updateTerritorio(modalState.id, formData.name, isoDate);
+          if (formData.selectedBairroId && formData.selectedBairroId !== modalState.bairroId) {
+            moveTerritorioToBairro(modalState.id, formData.selectedBairroId);
+          }
         }
         break;
       case 'add_endereco':
@@ -416,6 +419,10 @@ export const ManualEdit: React.FC = () => {
           if (!formData.status && !formData.statusComment) sDate = undefined;
           
           updateEndereco(modalState.id, formData.street, formData.number, formData.observations, formData.status, formData.statusComment, sDate);
+          
+          if (formData.selectedTerritorioId && formData.selectedTerritorioId !== modalState.territorioId) {
+            moveEnderecoToTerritorio(modalState.id, formData.selectedTerritorioId);
+          }
         }
         break;
       case 'confirm_delete':
@@ -675,10 +682,11 @@ export const ManualEdit: React.FC = () => {
                                 onToggle={toggleTerritorio}
                                 onAddEndereco={(tId) => { setModalState({ type: 'add_endereco', territorioId: tId }); setFormData({ street: '', number: '', observations: '' }); }}
                                 onEdit={(t) => { 
-                                  setModalState({ type: 'edit_territorio', id: t.id, name: t.name, lastAssignedDate: t.lastAssignedDate }); 
+                                  setModalState({ type: 'edit_territorio', id: t.id, name: t.name, lastAssignedDate: t.lastAssignedDate, bairroId: bairro.id }); 
                                   setFormData({ 
                                     name: t.name, 
-                                    lastAssignedDate: t.lastAssignedDate ? format(new Date(t.lastAssignedDate), 'yyyy-MM-dd') : '' 
+                                    lastAssignedDate: t.lastAssignedDate ? format(new Date(t.lastAssignedDate), 'yyyy-MM-dd') : '',
+                                    selectedBairroId: bairro.id
                                   }); 
                                 }}
                                 onDelete={(id, name) => setModalState({ type: 'confirm_delete', entityType: 'territorio', id, name })}
@@ -686,8 +694,8 @@ export const ManualEdit: React.FC = () => {
                                 onResetStatuses={(id, name) => setModalState({ type: 'confirm_reset_statuses', id, name })}
                                 copiedId={copiedId}
                                 onEditEndereco={(e) => {
-                                  setModalState({ type: 'edit_endereco', id: e.id, street: e.street, number: e.number, observations: e.observations || '', status: e.status, statusComment: e.statusComment, statusDate: e.statusDate }); 
-                                  setFormData({ street: e.street, number: e.number, observations: e.observations || '', status: e.status, statusComment: e.statusComment || '', statusDate: e.statusDate || '' }); 
+                                  setModalState({ type: 'edit_endereco', id: e.id, street: e.street, number: e.number, observations: e.observations || '', status: e.status, statusComment: e.statusComment, statusDate: e.statusDate, territorioId: territorio.id }); 
+                                  setFormData({ street: e.street, number: e.number, observations: e.observations || '', status: e.status, statusComment: e.statusComment || '', statusDate: e.statusDate || '', selectedBairroId: bairro.id, selectedTerritorioId: territorio.id }); 
                                 }}
                                 onDeleteEndereco={(id, name) => setModalState({ type: 'confirm_delete', entityType: 'endereco', id, name })}
                               />
@@ -801,15 +809,29 @@ export const ManualEdit: React.FC = () => {
                     />
                   </div>
                   {modalState.type === 'edit_territorio' && (
-                    <div>
-                      <label className="block text-sm font-medium text-text-dim mb-1">Data da Última Visita</label>
-                      <input 
-                        type="date" 
-                        value={formData.lastAssignedDate || ''} 
-                        onChange={e => setFormData({ ...formData, lastAssignedDate: e.target.value })}
-                        className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
-                      />
-                      <p className="text-xs text-text-dim mt-1">Deixe em branco para marcar como nunca visitado.</p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-text-dim mb-1">Mover a outro Barrio</label>
+                        <select 
+                          value={formData.selectedBairroId || ''} 
+                          onChange={e => setFormData({ ...formData, selectedBairroId: e.target.value })}
+                          className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none"
+                        >
+                          {db.bairros.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-text-dim mb-1">Data da Última Visita</label>
+                        <input 
+                          type="date" 
+                          value={formData.lastAssignedDate || ''} 
+                          onChange={e => setFormData({ ...formData, lastAssignedDate: e.target.value })}
+                          className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                        />
+                        <p className="text-xs text-text-dim mt-1">Deixe em branco para marcar como nunca visitado.</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -908,15 +930,48 @@ export const ManualEdit: React.FC = () => {
                   )}
 
                   {modalState.type !== 'smart_add_endereco' && (
-                    <div>
-                      <label className="block text-sm font-medium text-text-dim mb-1">Rua</label>
-                      <input 
-                        type="text" 
-                        value={formData.street || ''} 
-                        onChange={e => setFormData({ ...formData, street: e.target.value })}
-                        className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
-                        autoFocus
-                      />
+                    <div className="space-y-4">
+                      {modalState.type === 'edit_endereco' && (
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-text-dim mb-1">Mover a otro Barrio</label>
+                            <select 
+                              value={formData.selectedBairroId || ''} 
+                              onChange={e => setFormData({ ...formData, selectedBairroId: e.target.value, selectedTerritorioId: '' })}
+                              className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none"
+                            >
+                              <option value="" disabled>Seleccione...</option>
+                              {db.bairros.map(b => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-text-dim mb-1">Mover a otro Territorio</label>
+                            <select 
+                              value={formData.selectedTerritorioId || ''} 
+                              onChange={e => setFormData({ ...formData, selectedTerritorioId: e.target.value })}
+                              className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none"
+                              disabled={!formData.selectedBairroId}
+                            >
+                              <option value="" disabled>Seleccione...</option>
+                              {db.bairros.find(b => b.id === formData.selectedBairroId)?.territorios.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-sm font-medium text-text-dim mb-1">Rua</label>
+                        <input 
+                          type="text" 
+                          value={formData.street || ''} 
+                          onChange={e => setFormData({ ...formData, street: e.target.value })}
+                          className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                          autoFocus
+                        />
+                      </div>
                     </div>
                   )}
                   <div>
