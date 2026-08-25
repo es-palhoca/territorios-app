@@ -25,7 +25,7 @@ interface DetalleTerritorioProps {
 }
 
 export default function DetalleTerritorio({ territorioId, onClose, isManager, asignacionId, onReturn }: DetalleTerritorioProps) {
-  const { db, updateEndereco, addEndereco, removeEndereco, saveGPS } = useDatabase();
+  const { db, updateEndereco, addEndereco, removeEndereco, saveGPS, moveEnderecoToTerritorio } = useDatabase();
   const { user } = useAuth();
   
   const [visitas, setVisitas] = useState<Record<string, Visita[]>>({});
@@ -52,15 +52,19 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
   const [editStreet, setEditStreet] = useState('');
   const [editNumber, setEditNumber] = useState('');
   const [editObservations, setEditObservations] = useState('');
+  const [editBairroId, setEditBairroId] = useState('');
+  const [editTerritorioId, setEditTerritorioId] = useState('');
 
   // Buscamos el territorio en la DB local
   let territorio: any = null;
   let bairroName = '';
+  let bairroId = '';
   for (const b of db.bairros) {
     const t = b.territorios.find(t => t.id === territorioId);
     if (t) {
       territorio = t;
       bairroName = b.name;
+      bairroId = b.id;
       break;
     }
   }
@@ -186,15 +190,20 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
     setEditStreet(end.street);
     setEditNumber(end.number);
     setEditObservations(end.observations || '');
+    setEditBairroId(bairroId);
+    setEditTerritorioId(territorio.id);
     setShowEditModal(true);
   };
 
   const handleEditAddress = () => {
     if (!editStreet.trim() || !editId) return;
     const end = territorio.enderecos.find((e: any) => e.id === editId);
-    if (!end) return;
-    
-    updateEndereco(editId, editStreet.trim(), editNumber.trim() || 'S/N', editObservations.trim() || undefined, end.status, end.status_comment, end.status_date);
+    if (end) {
+      updateEndereco(editId, editStreet, editNumber, editObservations, end.status, end.statusComment, end.statusDate);
+      if (editTerritorioId && editTerritorioId !== territorio.id) {
+        moveEnderecoToTerritorio(editId, editTerritorioId);
+      }
+    }
     setShowEditModal(false);
   };
 
@@ -549,6 +558,35 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
               <button onClick={() => setShowEditModal(false)} className="text-text-dim hover:text-text-main"><X size={20}/></button>
             </div>
             <div className="p-4 space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-text-dim mb-1">Mover a otro Barrio</label>
+                  <select 
+                    value={editBairroId} 
+                    onChange={e => { setEditBairroId(e.target.value); setEditTerritorioId(''); }}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                  >
+                    <option value="" disabled>Seleccione...</option>
+                    {db.bairros.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-text-dim mb-1">Mover a otro Territorio</label>
+                  <select 
+                    value={editTerritorioId} 
+                    onChange={e => setEditTerritorioId(e.target.value)}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                    disabled={!editBairroId}
+                  >
+                    <option value="" disabled>Seleccione...</option>
+                    {db.bairros.find(b => b.id === editBairroId)?.territorios.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-text-dim mb-1">Calle / Avenida / Edificio</label>
                 <input 
