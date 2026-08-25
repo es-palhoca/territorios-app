@@ -4,7 +4,7 @@ import { MapPin, Globe, CalendarX2, Check, X, Trash2, ExternalLink } from 'lucid
 import { format } from 'date-fns';
 
 export default function BandejaRevision() {
-  const { db, approveGPS, updateEndereco, removeEndereco } = useDatabase();
+  const { db, approveGPS, rejectGPS, updateEndereco, removeEndereco } = useDatabase();
 
   const todasLasDirecciones = db.bairros.flatMap(b => b.territorios.flatMap(t => t.enderecos.map(e => ({ ...e, territorioName: t.name, bairroName: b.name }))));
 
@@ -40,7 +40,7 @@ export default function BandejaRevision() {
                     Lat: {end.lat?.toFixed(5)}, Lng: {end.lng?.toFixed(5)}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap md:flex-nowrap">
                   <button 
                     onClick={() => openMap(end.lat!, end.lng!)}
                     className="flex-1 md:flex-none text-xs bg-bg border border-border hover:bg-surface-accent text-text-main py-2 px-3 rounded-lg flex items-center justify-center gap-1 transition-colors"
@@ -54,11 +54,14 @@ export default function BandejaRevision() {
                     <Check size={14} /> Aprobar
                   </button>
                   <button 
-                    onClick={() => updateEndereco(end.id, end.street, end.number, end.observations, end.status, end.statusComment, end.statusDate)} 
-                    // To reject, we'd ideally remove lat/lng, but currently updateEndereco doesn't clear them natively. We'll leave it as a quick reset or just not support rejection yet to keep it simple. For now, let's implement a quick clear.
-                    // Wait, if I just update gps_status to null, we need a reject function. Let's skip reject for v1, if they don't approve they just don't click approve.
-                    className="hidden"
+                    onClick={() => {
+                      if (confirm('¿Seguro que deseas descartar esta captura GPS? El publicador deberá capturarla de nuevo.')) {
+                        rejectGPS(end.id);
+                      }
+                    }}
+                    className="flex-1 md:flex-none text-xs bg-bg border border-error/30 text-error hover:bg-error/10 py-2 px-3 rounded-lg flex items-center justify-center gap-1 transition-colors"
                   >
+                    <X size={14} /> Descartar
                   </button>
                 </div>
               </div>

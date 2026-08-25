@@ -40,6 +40,7 @@ interface DatabaseContextType {
   splitLargeTerritories: () => void;
   saveGPS: (id: string, lat: number, lng: number) => void;
   approveGPS: (id: string) => void;
+  rejectGPS: (id: string) => void;
 }
 
 const defaultDb: Database = { bairros: [], chats: [] };
@@ -232,6 +233,18 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     supabase.from('enderecos').update({ gps_status: 'VERIFIED' }).eq('id', id).then();
   };
 
+  const rejectGPS = (id: string) => {
+    setDb(prev => ({
+      ...prev,
+      bairros: prev.bairros.map(b => ({
+        ...b, territorios: b.territorios.map(t => ({
+          ...t, enderecos: t.enderecos.map(e => e.id === id ? { ...e, lat: undefined, lng: undefined, gps_status: undefined } : e)
+        }))
+      }))
+    }));
+    supabase.from('enderecos').update({ lat: null, lng: null, gps_status: null }).eq('id', id).then();
+  };
+
   const removeEndereco = (id: string) => {
     setDb(prev => ({
       ...prev,
@@ -274,7 +287,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <DatabaseContext.Provider value={{
-      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS
+      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS, rejectGPS
     }}>
       {children}
     </DatabaseContext.Provider>
