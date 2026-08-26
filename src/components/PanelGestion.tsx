@@ -15,10 +15,19 @@ interface Asignacion {
 }
 
 export default function PanelGestion() {
-  const { db } = useDatabase();
+  const { db, addTerritorio, addBairro } = useDatabase();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'ADMIN';
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estado para nuevo territorio
+  const [showNewTerritorioModal, setShowNewTerritorioModal] = useState(false);
+  const [newTerritorioName, setNewTerritorioName] = useState('');
+  const [newTerritorioBairroId, setNewTerritorioBairroId] = useState('');
+  
+  // Estado para nuevo barrio
+  const [showNewBairroModal, setShowNewBairroModal] = useState(false);
+  const [newBairroName, setNewBairroName] = useState('');
   
   // Datos relacionales
   const [perfiles, setPerfiles] = useState<UserProfile[]>([]);
@@ -78,6 +87,21 @@ export default function PanelGestion() {
     }
   };
 
+  const handleSaveNewTerritorio = () => {
+    if (!newTerritorioName.trim() || !newTerritorioBairroId) return;
+    addTerritorio(newTerritorioBairroId, newTerritorioName);
+    setShowNewTerritorioModal(false);
+    setNewTerritorioName('');
+    setNewTerritorioBairroId('');
+  };
+
+  const handleSaveNewBairro = () => {
+    if (!newBairroName.trim()) return;
+    addBairro(newBairroName);
+    setShowNewBairroModal(false);
+    setNewBairroName('');
+  };
+
   const allTerritories = db.bairros.flatMap(b => 
     b.territorios.map(t => {
       // Buscar si tiene una asignacion activa
@@ -133,16 +157,34 @@ export default function PanelGestion() {
             </div>
           </div>
         </div>
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim" />
-          <input 
-            type="text" 
-            placeholder="Buscar por barrio o número..." 
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full md:w-72 bg-surface border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim" />
+              <input 
+                type="text" 
+                placeholder="Buscar por barrio o número..." 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full sm:w-72 bg-surface border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none transition-colors"
+              />
+            </div>
+            {isAdmin && (
+              <>
+                <button 
+                  onClick={() => setShowNewBairroModal(true)}
+                  className="bg-surface-accent hover:bg-border text-text-main font-medium py-2.5 px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  Nuevo Barrio
+                </button>
+                <button 
+                  onClick={() => setShowNewTerritorioModal(true)}
+                  className="bg-primary hover:bg-primary-hover text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  Nuevo Territorio
+                </button>
+              </>
+            )}
+          </div>
       </div>
 
       {loading ? (
@@ -220,6 +262,83 @@ export default function PanelGestion() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal Nuevo Territorio */}
+      {showNewTerritorioModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-lg">Nuevo Territorio</h3>
+              <button onClick={() => setShowNewTerritorioModal(false)} className="text-text-dim hover:text-text-main">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-text-dim mb-1">Nombre / Número del Territorio</label>
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={newTerritorioName}
+                  onChange={(e) => setNewTerritorioName(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                  placeholder="Ej: 6 o Territorio 6"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-dim mb-1">Barrio</label>
+                <select 
+                  value={newTerritorioBairroId} 
+                  onChange={e => setNewTerritorioBairroId(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                >
+                  <option value="" disabled>Seleccione...</option>
+                  {db.bairros.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button 
+                onClick={handleSaveNewTerritorio}
+                disabled={!newTerritorioName.trim() || !newTerritorioBairroId}
+                className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-medium py-2 rounded-lg transition-colors"
+              >
+                Crear Territorio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nuevo Barrio */}
+      {showNewBairroModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-lg">Nuevo Barrio</h3>
+              <button onClick={() => setShowNewBairroModal(false)} className="text-text-dim hover:text-text-main">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-text-dim mb-1">Nombre del Barrio</label>
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={newBairroName}
+                  onChange={(e) => setNewBairroName(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                  placeholder="Ej: Jardim Eldorado"
+                />
+              </div>
+              <button 
+                onClick={handleSaveNewBairro}
+                disabled={!newBairroName.trim()}
+                className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-medium py-2 rounded-lg transition-colors"
+              >
+                Crear Barrio
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

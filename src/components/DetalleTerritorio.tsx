@@ -25,7 +25,7 @@ interface DetalleTerritorioProps {
 }
 
 export default function DetalleTerritorio({ territorioId, onClose, isManager, asignacionId, onReturn }: DetalleTerritorioProps) {
-  const { db, updateEndereco, addEndereco, removeEndereco, saveGPS, moveEnderecoToTerritorio } = useDatabase();
+  const { db, updateEndereco, addEndereco, removeEndereco, saveGPS, moveEnderecoToTerritorio, updateTerritorio, moveTerritorioToBairro } = useDatabase();
   const { user } = useAuth();
   
   const [visitas, setVisitas] = useState<Record<string, Visita[]>>({});
@@ -54,6 +54,11 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
   const [editObservations, setEditObservations] = useState('');
   const [editBairroId, setEditBairroId] = useState('');
   const [editTerritorioId, setEditTerritorioId] = useState('');
+
+  // Editar Territorio
+  const [showEditTerritorioModal, setShowEditTerritorioModal] = useState(false);
+  const [editTName, setEditTName] = useState('');
+  const [editTBairroId, setEditTBairroId] = useState('');
 
   // Buscamos el territorio en la DB local
   let territorio: any = null;
@@ -213,6 +218,23 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
     }
   };
 
+  const handleOpenEditTerritorio = () => {
+    setEditTName(territorio.name);
+    setEditTBairroId(bairroId);
+    setShowEditTerritorioModal(true);
+  };
+
+  const handleSaveEditTerritorio = () => {
+    if (!editTName.trim()) return;
+    if (editTName !== territorio.name) {
+      updateTerritorio(territorio.id, editTName);
+    }
+    if (editTBairroId && editTBairroId !== bairroId) {
+      moveTerritorioToBairro(territorio.id, editTBairroId);
+    }
+    setShowEditTerritorioModal(false);
+  };
+
   if (!territorio) return <div className="p-8">Territorio no encontrado</div>;
 
   const validEnderecos = territorio.enderecos;
@@ -231,10 +253,23 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
           >
             <ChevronLeft size={24} />
           </button>
-          <div>
-            <div className="text-xs font-bold text-text-dim uppercase tracking-wider">{bairroName}</div>
-            <h2 className="text-xl font-bold text-text-main leading-tight">Territorio {territorio.name}</h2>
-          </div>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-xs font-bold text-text-dim uppercase tracking-wider">{bairroName}</div>
+                <h2 className="text-xl font-bold text-text-main leading-tight flex items-center gap-2">
+                  Territorio {territorio.name}
+                  {isManager && (
+                    <button 
+                      onClick={handleOpenEditTerritorio}
+                      className="text-text-dim hover:text-primary transition-colors p-1"
+                      title="Editar Territorio"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  )}
+                </h2>
+              </div>
+            </div>
         </div>
         
         <div className="text-right">
@@ -618,6 +653,50 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
               <button 
                 onClick={handleEditAddress}
                 disabled={!editStreet.trim()}
+                className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-medium py-2 rounded-lg transition-colors"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Editar Territorio */}
+      {showEditTerritorioModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-lg">Editar Territorio</h3>
+              <button onClick={() => setShowEditTerritorioModal(false)} className="text-text-dim hover:text-text-main"><X size={20}/></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-text-dim mb-1">Nombre / Número del Territorio</label>
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={editTName}
+                  onChange={(e) => setEditTName(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-dim mb-1">Barrio</label>
+                <select 
+                  value={editTBairroId} 
+                  onChange={e => setEditTBairroId(e.target.value)}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                >
+                  <option value="" disabled>Seleccione...</option>
+                  {db.bairros.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button 
+                onClick={handleSaveEditTerritorio}
+                disabled={!editTName.trim() || !editTBairroId}
                 className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-medium py-2 rounded-lg transition-colors"
               >
                 Guardar Cambios
