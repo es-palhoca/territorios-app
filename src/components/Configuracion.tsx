@@ -8,6 +8,7 @@ export default function Configuracion() {
   const [perfiles, setPerfiles] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'users' | 'add'>('users');
+  const [searchUser, setSearchUser] = useState('');
 
   // Formulario nuevo usuario
   const [newName, setNewName] = useState('');
@@ -142,26 +143,38 @@ export default function Configuracion() {
       </div>
 
       {activeTab === 'users' && (
-        <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-          {loading ? (
-            <div className="p-8 text-center text-text-dim">Cargando usuarios...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-bg text-text-dim uppercase text-xs">
-                  <tr>
-                    <th className="px-6 py-4 font-bold">Nombre</th>
-                    <th className="px-6 py-4 font-bold">Correo (Email)</th>
-                    <th className="px-6 py-4 font-bold">Rol</th>
-                    <th className="px-6 py-4 font-bold text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {perfiles.map(p => (
-                    <tr key={p.id} className="hover:bg-bg/50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-text-main">{p.full_name}</td>
-                      <td className="px-6 py-4 text-text-dim">{p.email}</td>
-                      <td className="px-6 py-4">
+        <div className="space-y-4">
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Buscar por nombre o correo..." 
+              value={searchUser}
+              onChange={(e) => setSearchUser(e.target.value)}
+              className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
+            {loading ? (
+              <div className="p-8 text-center text-text-dim">Cargando usuarios...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-bg text-text-dim uppercase text-xs">
+                    <tr>
+                      <th className="px-6 py-4 font-bold">Nombre</th>
+                      <th className="px-6 py-4 font-bold">Correo (Email)</th>
+                      <th className="px-6 py-4 font-bold">Rol</th>
+                      <th className="px-6 py-4 font-bold text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {perfiles
+                      .filter(p => p.full_name.toLowerCase().includes(searchUser.toLowerCase()) || p.email.toLowerCase().includes(searchUser.toLowerCase()))
+                      .map(p => (
+                      <tr key={p.id} className="hover:bg-bg/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-text-main">{p.full_name}</td>
+                        <td className="px-6 py-4 text-text-dim">{p.email}</td>
+                        <td className="px-6 py-4">
                         <select
                           value={p.role}
                           onChange={(e) => handleRoleChange(p.id, e.target.value)}
@@ -188,9 +201,10 @@ export default function Configuracion() {
             </div>
           )}
         </div>
-      )}
+      </div>
+    )}
 
-      {activeTab === 'add' && (
+    {activeTab === 'add' && (
         <div className="max-w-md bg-surface border border-border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-bold mb-4">Registrar Nuevo Hermano</h2>
           

@@ -1,10 +1,44 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useDatabase } from '../context/DatabaseContext';
-import { MapPin, Globe, CalendarX2, Check, X, Trash2, ExternalLink } from 'lucide-react';
+import { MapPin, Globe, CalendarX2, Check, X, Trash2, ExternalLink, KeyRound } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '../lib/supabase';
 
 export default function BandejaRevision() {
   const { db, approveGPS, rejectGPS, updateEndereco, removeEndereco } = useDatabase();
+
+  const [resetRequests, setResetRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchResetRequests();
+  }, []);
+
+  const fetchResetRequests = async () => {
+    const { data } = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('password_reset_request', true);
+    if (data) setResetRequests(data);
+  };
+
+  const handleApproveReset = async (userId: string) => {
+    if (!confirm('¿Aprobar reseteo a 123456?')) return;
+    const { error } = await supabase.rpc('admin_reset_user_password', { target_user_id: userId });
+    if (!error) {
+      alert('Contraseña reseteada exitosamente a 123456.');
+      fetchResetRequests();
+    } else {
+      alert('Error al aprobar: ' + error.message);
+    }
+  };
+
+  const handleRejectReset = async (userId: string) => {
+    if (!confirm('¿Rechazar esta solicitud?')) return;
+    const { error } = await supabase.rpc('reject_password_reset', { target_user_id: userId });
+    if (!error) {
+      fetchResetRequests();
+    }
+  };
 
   const todasLasDirecciones = db.bairros.flatMap(b => b.territorios.flatMap(t => t.enderecos.map(e => ({ ...e, territorioName: t.name, bairroName: b.name }))));
 
@@ -21,6 +55,42 @@ export default function BandejaRevision() {
         <h1 className="text-2xl font-bold text-text-main mb-2">Bandeja de Revisión</h1>
         <p className="text-text-dim">Revisa los cambios importantes reportados por los publicadores.</p>
       </div>
+
+      {/* SOLICITUDES DE RESETEO DE CONTRASEÑA */}
+      <section>
+        <h2 className="text-lg font-bold text-text-main mb-4 flex items-center gap-2">
+          <KeyRound className="text-primary" /> Solicitudes de Recuperación de Clave ({resetRequests.length})
+        </h2>
+        {resetRequests.length === 0 ? (
+          <p className="text-sm text-text-dim">No hay solicitudes pendientes.</p>
+        ) : (
+          <div className="space-y-3">
+            {resetRequests.map(req => (
+              <div key={req.id} className="bg-surface border border-border rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs text-text-dim uppercase font-bold mb-1">Publicador</div>
+                  <h3 className="font-bold text-text-main">{req.full_name}</h3>
+                  <div className="text-sm text-text-dim mt-1">{req.email}</div>
+                </div>
+                <div className="flex gap-2 flex-wrap md:flex-nowrap">
+                  <button 
+                    onClick={() => handleApproveReset(req.id)}
+                    className="flex-1 md:flex-none text-xs bg-whatsapp hover:bg-whatsapp/90 text-white py-2 px-3 rounded-lg flex items-center justify-center gap-1 transition-colors font-bold shadow-md"
+                  >
+                    <Check size={14} /> Aprobar Reseteo
+                  </button>
+                  <button 
+                    onClick={() => handleRejectReset(req.id)}
+                    className="flex-1 md:flex-none text-xs bg-bg border border-error/30 text-error hover:bg-error/10 py-2 px-3 rounded-lg flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <X size={14} /> Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* GPS PENDIENTES */}
       <section>
