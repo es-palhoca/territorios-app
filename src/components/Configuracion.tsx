@@ -47,16 +47,15 @@ export default function Configuracion() {
   };
 
   const handleResetPassword = async (userId: string) => {
-    if (!confirm('¿Estás seguro de que quieres forzar a este usuario a cambiar su contraseña nuevamente?')) return;
+    if (!confirm('¿Estás seguro de que quieres forzar a este usuario a cambiar su contraseña? Su contraseña temporal será 123456.')) return;
     
-    const { error } = await supabase
-      .from('perfiles')
-      .update({ debe_cambiar_clave: true })
-      .eq('id', userId);
+    const { error } = await supabase.rpc('admin_reset_user_password', { target_user_id: userId });
 
     if (!error) {
-      alert("El usuario tendrá que cambiar su contraseña en su próximo inicio de sesión.");
+      alert("Contraseña reseteada a 123456 exitosamente.");
       fetchPerfiles();
+    } else {
+      alert("Error al restablecer la contraseña. Asegúrate de haber creado la función SQL en Supabase. Detalles: " + error.message);
     }
   };
 
