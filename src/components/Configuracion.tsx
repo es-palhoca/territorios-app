@@ -169,7 +169,7 @@ export default function Configuracion() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {perfiles
-                      .filter(p => p.full_name.toLowerCase().includes(searchUser.toLowerCase()) || p.email.toLowerCase().includes(searchUser.toLowerCase()))
+                      .filter(p => (p.full_name?.toLowerCase() || '').includes(searchUser.toLowerCase()) || (p.email?.toLowerCase() || '').includes(searchUser.toLowerCase()))
                       .map(p => (
                       <tr key={p.id} className="hover:bg-bg/50 transition-colors">
                         <td className="px-6 py-4 font-bold text-text-main">{p.full_name}</td>
