@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Bairro, Database, Endereco, Territorio, ChatSession, HistoryEntry } from '../types';
 import { useAuth } from './AuthContext';
@@ -326,11 +326,22 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       ...prev,
       bairros: prev.bairros.map(b => ({
         ...b, territorios: b.territorios.map(t => t.id === territorioId ? {
-          ...t, enderecos: t.enderecos.map(e => ({ ...e, status: undefined, statusComment: undefined, statusDate: undefined }))
+          ...t, enderecos: t.enderecos.map(e => {
+            if (e.status === 'NO_VISITAR' || e.status === 'NO_EXTRANJERO') {
+              return e; // Mantener estados persistentes
+            }
+            return { ...e, status: undefined, statusComment: undefined, statusDate: undefined };
+          })
         } : t)
       }))
     }));
-    supabase.from('enderecos').update({ status: null, status_comment: null, status_date: null }).eq('territorio_id', territorioId).then();
+    // En supabase excluimos los que no deben borrarse
+    supabase.from('enderecos')
+      .update({ status: null, status_comment: null, status_date: null })
+      .eq('territorio_id', territorioId)
+      .neq('status', 'NO_VISITAR')
+      .neq('status', 'NO_EXTRANJERO')
+      .then();
   };
 
   const markTerritorioAssigned = (id: string) => {
@@ -365,3 +376,4 @@ export const useDatabase = () => {
   if (context === undefined) throw new Error('useDatabase must be used within a DatabaseProvider');
   return context;
 };
+

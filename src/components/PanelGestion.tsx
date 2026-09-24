@@ -68,6 +68,10 @@ export default function PanelGestion() {
     });
 
     if (!error) {
+      // Actualizar la fecha de ultima asignación en el territorio
+      const d = new Date().toISOString();
+      await supabase.from('territorios').update({ last_assigned_date: d }).eq('id', territorioId);
+      
       // Recargar asignaciones para actualizar UI
       await fetchRelationalData();
     } else {
@@ -353,4 +357,5 @@ export default function PanelGestion() {
     </div>
   );
 }
+
 
