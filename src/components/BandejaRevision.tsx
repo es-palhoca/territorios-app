@@ -8,8 +8,31 @@ export default function BandejaRevision() {
   const { db, approveGPS, rejectGPS, updateEndereco, removeEndereco } = useDatabase();
 
   const [resetRequests, setResetRequests] = useState<any[]>([]);
+  const [discardDetails, setDiscardDetails] = useState<Record<string, { user: string, date: string }>>({});
 
   useEffect(() => {
+    const fetchDiscardInfo = async () => {
+      const { data, error } = await supabase
+        .from('visitas')
+        .select('endereco_id, visited_at, perfiles(full_name)')
+        .eq('status', 'NO_EXTRANJERO')
+        .order('visited_at', { ascending: false });
+        
+      if (data) {
+        const details: Record<string, any> = {};
+        data.forEach((v: any) => {
+          if (!details[v.endereco_id]) {
+            details[v.endereco_id] = {
+              user: v.perfiles?.full_name || 'Desconocido',
+              date: v.visited_at
+            };
+          }
+        });
+        setDiscardDetails(details);
+      }
+    };
+
+    fetchDiscardInfo();
     fetchResetRequests();
   }, []);
 
@@ -157,9 +180,17 @@ export default function BandejaRevision() {
                   <div className="mt-2 text-sm bg-error/10 text-error inline-block px-2 py-1 rounded-md font-bold">
                     {end.status === 'NO_EXTRANJERO' ? 'No es extranjero' : 'No visitar'}
                   </div>
-                  {end.observations && (
-                    <p className="text-sm text-text-dim mt-2 bg-bg p-2 rounded-lg border border-border">Obs: {end.observations}</p>
-                  )}
+                    
+                    {discardDetails[end.id] && (
+                      <div className="mt-2 text-xs text-text-dim bg-bg p-2 rounded-lg border border-border">
+                        Reportado por: <span className="font-bold text-text-main">{discardDetails[end.id].user}</span>
+                        <div className="mt-0.5 opacity-80">Fecha: {new Date(discardDetails[end.id].date).toLocaleDateString()}</div>
+                      </div>
+                    )}
+
+                    {end.observations && (
+                      <p className="text-sm text-text-dim mt-2 bg-bg p-2 rounded-lg border border-border">Obs: {end.observations}</p>
+                    )}
                 </div>
                 <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto mt-2 md:mt-0">
                   <button 
@@ -188,3 +219,5 @@ export default function BandejaRevision() {
     </div>
   );
 }
+
+
