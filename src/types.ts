@@ -1,4 +1,4 @@
-export interface Endereco {
+﻿export interface Endereco {
   id: string;
   street: string;
   number: string;
@@ -14,7 +14,7 @@ export interface Endereco {
 export interface Territorio {
   id: string;
   bairroId: string;
-  name: string; // e.g., "6" or "Território 6"
+  name: string; // e.g., "6" or "TerritÃ³rio 6"
   type?: 'REGULAR' | 'CENSUS'; // REGULAR for addresses, CENSUS for mapping blocks
   instructions?: string; // Text for census limits or general instructions
   lastAssignedDate?: string; // ISO string
@@ -37,23 +37,13 @@ export interface HistoryEntry {
 
 export interface Database {
   bairros: Bairro[];
-  chats?: ChatSession[];
   city?: string;
   state?: string;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'model';
-  parts: any[];
-}
 
-export interface ChatSession {
-  id: string;
-  title: string;
-  updatedAt: string;
-  messages: ChatMessage[];
-}
+
+
 
 export interface Message {
   id: string;
@@ -61,3 +51,4 @@ export interface Message {
   content: string;
   timestamp: string;
 }
+

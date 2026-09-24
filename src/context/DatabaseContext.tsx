@@ -1,6 +1,6 @@
-﻿import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { Bairro, Database, Endereco, Territorio, ChatSession, HistoryEntry } from '../types';
+﻿import { v4 as uuidv4 } from 'uuid';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { Bairro, Database, Endereco, Territorio, HistoryEntry } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -24,8 +24,6 @@ interface DatabaseContextType {
   removeEndereco: (id: string) => void;
   resetTerritorioStatuses: (territorioId: string) => void;
   markTerritorioAssigned: (id: string) => void;
-  saveChat: (session: ChatSession) => void;
-  deleteChat: (id: string) => void;
   exportDb: () => string;
   importDb: (json: string) => boolean;
   mergeBulkData: (parsedData: any[]) => void;
@@ -45,7 +43,7 @@ interface DatabaseContextType {
   moveEnderecoToTerritorio: (enderecoId: string, newTerritorioId: string) => void;
 }
 
-const defaultDb: Database = { bairros: [], chats: [] };
+const defaultDb: Database = { bairros: [] };
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 
@@ -113,7 +111,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }))
     }));
 
-    setDb({ bairros, chats: [] });
+    setDb({ bairros });
   };
 
   const addBairro = (name: string) => {
@@ -349,9 +347,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     updateTerritorio(id, '', d);
   };
 
-  // Implementaciones stub para funciones que ya no usamos con la nueva BD
-  const saveChat = () => {};
-  const deleteChat = () => {};
+  
   const exportDb = () => JSON.stringify(dbRef.current);
   const importDb = (json: string) => false;
   const mergeBulkData = (data: any[]) => {};
@@ -364,7 +360,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <DatabaseContext.Provider value={{
-      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, saveChat, deleteChat, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS, rejectGPS, moveTerritorioToBairro, moveEnderecoToTerritorio
+      db, setDb, addBairro, updateBairro, removeBairro, addTerritorio, updateTerritorio, removeTerritorio, addEndereco, updateEndereco, removeEndereco, resetTerritorioStatuses, markTerritorioAssigned, exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio, importState, startBulkImport, getDb, history, undo, splitLargeTerritories, saveGPS, approveGPS, rejectGPS, moveTerritorioToBairro, moveEnderecoToTerritorio
     }}>
       {children}
     </DatabaseContext.Provider>
@@ -376,4 +372,6 @@ export const useDatabase = () => {
   if (context === undefined) throw new Error('useDatabase must be used within a DatabaseProvider');
   return context;
 };
+
+
 
