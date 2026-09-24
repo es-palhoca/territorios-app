@@ -122,10 +122,46 @@ export default function PanelGestion() {
     })
   );
 
-  const filtered = allTerritories.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    t.bairroName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    const [filterBairro, setFilterBairro] = useState<string>('ALL');
+
+  const filtered = allTerritories
+    .filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            t.bairroName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesBairro = filterBairro === 'ALL' || t.bairroId === filterBairro;
+      return matchesSearch && matchesBairro;
+    })
+    .sort((a, b) => {
+      // 1. Asignados van hasta el final
+      if (a.asignacionActiva && !b.asignacionActiva) return 1;
+      if (!a.asignacionActiva && b.asignacionActiva) return -1;
+
+      // 2. Si ambos están asignados, orden alfabético por barrio y luego territorio
+      if (a.asignacionActiva && b.asignacionActiva) {
+        const bComp = a.bairroName.localeCompare(b.bairroName);
+        if (bComp !== 0) return bComp;
+        return a.name.localeCompare(b.name, undefined, { numeric: true });
+      }
+
+      // 3. Si ninguno está asignado (están disponibles):
+      // Primero los "Nunca hechos" (sin fecha)
+      if (!a.lastAssignedDate && b.lastAssignedDate) return -1;
+      if (a.lastAssignedDate && !b.lastAssignedDate) return 1;
+
+      if (!a.lastAssignedDate && !b.lastAssignedDate) {
+        // Ambos nunca hechos: Orden alfabético
+        const bComp = a.bairroName.localeCompare(b.bairroName);
+        if (bComp !== 0) return bComp;
+        return a.name.localeCompare(b.name, undefined, { numeric: true });
+      }
+
+      // Ambos tienen fecha: el más antiguo primero (ascendente)
+      if (a.lastAssignedDate && b.lastAssignedDate) {
+        return new Date(a.lastAssignedDate).getTime() - new Date(b.lastAssignedDate).getTime();
+      }
+      
+      return 0;
+    });
 
   const totalTerritorios = allTerritories.length;
   const totalDirecciones = allTerritories.reduce((sum, t) => sum + (t.enderecos?.length || 0), 0);
@@ -173,6 +209,16 @@ export default function PanelGestion() {
                 className="w-full sm:w-72 bg-surface border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none transition-colors"
               />
             </div>
+            <select
+              value={filterBairro}
+              onChange={e => setFilterBairro(e.target.value)}
+              className="w-full sm:w-48 bg-surface border border-border rounded-lg px-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none transition-colors"
+            >
+              <option value="ALL">Todos los barrios</option>
+              {db.bairros.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
             {isAdmin && (
               <>
                 <button 
@@ -357,5 +403,7 @@ export default function PanelGestion() {
     </div>
   );
 }
+
+
 
 
