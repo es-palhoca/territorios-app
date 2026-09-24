@@ -381,6 +381,20 @@ export default function DetalleTerritorio({ territorioId, onClose, isManager, as
                     </div>
                   </div>
 
+                  {/* Última Visita (si está libre para asignar) */}
+                  {!end.status && historial.length > 0 && (
+                    <div className="mb-3 bg-surface border border-border/50 rounded-lg p-2 text-xs flex justify-between items-center">
+                      <div>
+                        <span className="text-text-dim">Última vez:</span>{' '}
+                        <span className="font-bold text-text-main">{historial[0].perfiles?.full_name || 'Desconocido'}</span>
+                        <span className="text-text-dim ml-1">({format(new Date(historial[0].visited_at), 'dd/MM/yy')})</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${historial[0].status === 'HECHO' ? 'bg-whatsapp/20 text-whatsapp' : historial[0].status === 'NO_EN_CASA' ? 'bg-orange-500/20 text-orange-500' : 'bg-error/20 text-error'}`}>
+                        {historial[0].status === 'NO_EXTRANJERO' ? 'NO ES EXTRANJERO' : historial[0].status}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Botones de Estado */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                     <button 

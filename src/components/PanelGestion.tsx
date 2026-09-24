@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useDatabase } from '../context/DatabaseContext';
 import { Map, MapPin, Clock, CheckCircle2, User, Search, Eye } from 'lucide-react';
@@ -15,7 +15,7 @@ interface Asignacion {
 }
 
 export default function PanelGestion() {
-  const { db, addTerritorio, addBairro } = useDatabase();
+  const { db, addTerritorio, addBairro, resetTerritorioStatuses } = useDatabase();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'ADMIN';
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,12 +75,13 @@ export default function PanelGestion() {
     }
   };
 
-  const handleReturn = async (asignacionId: string) => {
+  const handleReturn = async (asignacionId: string, territorioId: string) => {
     const { error } = await supabase.from('asignaciones')
       .update({ status: 'DEVUELTO', returned_at: new Date().toISOString() })
       .eq('id', asignacionId);
 
     if (!error) {
+      resetTerritorioStatuses(territorioId);
       await fetchRelationalData();
     } else {
       alert("Error al devolver el territorio");
@@ -141,7 +142,7 @@ export default function PanelGestion() {
         <div>
           <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
             <Map size={24} className="text-primary" />
-            Gestión de Territorios
+            GestiÃ³n de Territorios
           </h1>
           <p className="text-text-dim text-sm mt-1 mb-3">
             Asigna territorios a los publicadores, registra devoluciones o explora su contenido.
@@ -162,7 +163,7 @@ export default function PanelGestion() {
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim" />
               <input 
                 type="text" 
-                placeholder="Buscar por barrio o número..." 
+                placeholder="Buscar por barrio o nÃºmero..." 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full sm:w-72 bg-surface border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none transition-colors"
@@ -210,7 +211,15 @@ export default function PanelGestion() {
                   {t.asignacionActiva ? (
                     <><Clock size={14} className="text-orange-400" /> <span className="text-orange-400 font-medium">Asignado hace {days} días</span></>
                   ) : (
-                    <><CheckCircle2 size={14} className="text-green-500" /> <span className="text-green-500 font-medium">Disponible para asignar</span></>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 size={14} className="text-green-500" /> 
+                        <span className="text-green-500 font-medium">Disponible para asignar</span>
+                      </div>
+                      <div className="text-xs text-text-dim mt-1.5 ml-5">
+                        Última vez trabajado: {t.lastAssignedDate ? new Date(t.lastAssignedDate).toLocaleDateString() : 'Nunca'}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -222,7 +231,7 @@ export default function PanelGestion() {
                         <span className="font-semibold truncate">{t.perfilAsignado?.full_name || 'Publicador Desconocido'}</span>
                       </div>
                       <button 
-                        onClick={() => handleReturn(t.asignacionActiva!.id)}
+                        onClick={() => handleReturn(t.asignacionActiva!.id, t.id)}
                         className="w-full bg-surface hover:bg-error/10 border border-error/20 text-error font-medium py-2 rounded-lg transition-colors text-sm"
                       >
                         Registrar Devolución
@@ -271,11 +280,11 @@ export default function PanelGestion() {
           <div className="bg-surface border border-border rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
             <div className="p-4 border-b border-border flex justify-between items-center">
               <h3 className="font-bold text-lg">Nuevo Territorio</h3>
-              <button onClick={() => setShowNewTerritorioModal(false)} className="text-text-dim hover:text-text-main">✕</button>
+              <button onClick={() => setShowNewTerritorioModal(false)} className="text-text-dim hover:text-text-main">âœ•</button>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-text-dim mb-1">Nombre / Número del Territorio</label>
+                <label className="block text-xs font-medium text-text-dim mb-1">Nombre / NÃºmero del Territorio</label>
                 <input 
                   autoFocus
                   type="text" 
@@ -316,7 +325,7 @@ export default function PanelGestion() {
           <div className="bg-surface border border-border rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95">
             <div className="p-4 border-b border-border flex justify-between items-center">
               <h3 className="font-bold text-lg">Nuevo Barrio</h3>
-              <button onClick={() => setShowNewBairroModal(false)} className="text-text-dim hover:text-text-main">✕</button>
+              <button onClick={() => setShowNewBairroModal(false)} className="text-text-dim hover:text-text-main">âœ•</button>
             </div>
             <div className="p-4 space-y-4">
               <div>
@@ -344,3 +353,4 @@ export default function PanelGestion() {
     </div>
   );
 }
+
