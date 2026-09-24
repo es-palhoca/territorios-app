@@ -291,7 +291,7 @@ export default function PanelGestion() {
                     <div className="flex flex-col gap-2">
                         <select 
                           id={`select-${t.id}`}
-                          className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none" bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                          className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
                         defaultValue=""
                       >
                         <option value="" disabled>Elegir publicador...</option>
@@ -403,6 +403,7 @@ export default function PanelGestion() {
     </div>
   );
 }
+
 
 
 
