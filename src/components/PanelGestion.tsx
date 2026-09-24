@@ -288,10 +288,10 @@ export default function PanelGestion() {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
-                      <select 
-                        id={`select-${t.id}`}
-                        className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
+                    <div className="flex flex-col gap-2">
+                        <select 
+                          id={`select-${t.id}`}
+                          className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none" bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-main focus:border-primary focus:outline-none"
                         defaultValue=""
                       >
                         <option value="" disabled>Elegir publicador...</option>
@@ -304,9 +304,9 @@ export default function PanelGestion() {
                           const select = document.getElementById(`select-${t.id}`) as HTMLSelectElement;
                           handleAssign(t.id, select.value);
                         }}
-                        className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        Asignar
+                        className="w-full bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
+                          Asignar
                       </button>
                     </div>
                   )}
@@ -403,6 +403,7 @@ export default function PanelGestion() {
     </div>
   );
 }
+
 
 
 

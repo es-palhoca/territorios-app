@@ -73,7 +73,8 @@ export default function BandejaRevision() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in">
+    <div className="flex-1 w-full h-full overflow-y-auto p-4 md:p-8 animate-in fade-in">
+      <div className="max-w-4xl mx-auto space-y-8 pb-10">
       <div>
         <h1 className="text-2xl font-bold text-text-main mb-2">Bandeja de Revisión</h1>
         <p className="text-text-dim">Revisa los cambios importantes reportados por los publicadores.</p>
@@ -214,10 +215,12 @@ export default function BandejaRevision() {
             ))}
           </div>
         )}
-      </section>
-
+            </section>
+      </div>
     </div>
   );
 }
+
+
 
 
